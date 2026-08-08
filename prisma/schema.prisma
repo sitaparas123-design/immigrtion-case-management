@@ -1,0 +1,197 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String   @map("password_hash")
+  role      String   @default("client") // superadmin, admin, writer, reviewer, client
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("users")
+}
+
+model Client {
+  id                String   @id @default(uuid())
+  name              String
+  email             String   @unique
+  phone             String
+  countryOfBirth    String   @map("country_of_birth")
+  currentField      String   @map("current_field")
+  highestDegree     String   @map("highest_degree")
+  university        String
+  citationsCount    Int      @default(0) @map("citations_count")
+  publicationsCount Int      @default(0) @map("publications_count")
+  patentsCount      Int      @default(0) @map("patents_count")
+  status            String   @default("Active")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  cases             Case[]
+
+  @@map("clients")
+}
+
+model Case {
+  id                 String   @id @default(uuid())
+  caseNumber         String   @unique @map("case_number")
+  clientId           String   @map("client_id")
+  petitionCategory   String   @map("petition_category")
+  fieldCategory      String   @map("field_category")
+  currentStage       Int      @default(1) @map("current_stage")
+  assignedWriter     String?  @map("assigned_writer")
+  assignedReviewer   String?  @map("assigned_reviewer")
+  riskLevel          String   @default("medium") @map("risk_level")
+  targetFilingDate   String   @map("target_filing_date")
+  uscisServiceCenter String   @map("uscis_service_center")
+  premiumProcessing  Boolean  @default(false) @map("premium_processing")
+  dhanasarProngs     Json?    @map("dhanasar_prongs")
+  eb1aCriteria       Json?    @map("eb1a_criteria")
+  notes              String?  @db.Text
+  lastUpdated        DateTime @updatedAt @map("last_updated")
+
+  client             Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  documents          Document[]
+  recommenders       Recommender[]
+  payments           Payment[]
+  messages           Message[]
+
+  @@map("cases")
+}
+
+model Recommender {
+  id                        String   @id @default(uuid())
+  caseId                    String   @map("case_id")
+  name                      String
+  title                     String
+  organization              String
+  relationship              String   // Independent Expert, Academic Advisor, etc.
+  status                    String   // Identified, Outreach Sent, Letter Signed, etc.
+  cvReceived                Boolean  @default(false) @map("cv_received")
+  letterDraftUrl            String?  @map("letter_draft_url")
+  keyContributionsMentioned Json     @map("key_contributions_mentioned")
+
+  case                      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@map("recommenders")
+}
+
+model Document {
+  id             String   @id @default(uuid())
+  caseId         String   @map("case_id")
+  name           String
+  category       String   // CV, Degree, Transcript, etc.
+  fileSize       String   @map("file_size")
+  uploadedBy     String   @map("uploaded_by")
+  uploadedAt     DateTime @default(now()) @map("uploaded_at")
+  status         String   @default("Pending Review")
+  fileUrl        String   @map("file_url")
+  cloudinaryId   String?  @map("cloudinary_id")
+  aiSummary      String?  @db.Text @map("ai_summary")
+
+  case           Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@map("documents")
+}
+
+model Task {
+  id             String   @id @default(uuid())
+  caseId         String   @map("case_id")
+  title          String
+  assignedRole   String   @map("assigned_role")
+  assignedToName String   @map("assigned_to_name")
+  stageId        Int      @map("stage_id")
+  dueDate        String   @map("due_date")
+  priority       String   @default("medium") // low, medium, high, urgent
+  completed      Boolean  @default(false)
+
+  @@map("tasks")
+}
+
+model Payment {
+  id           String    @id @default(uuid())
+  caseId       String    @map("case_id")
+  description  String
+  amount       Float
+  dueDate      String    @map("due_date")
+  status       String    // Paid, Pending, Overdue
+  paidAt       String?   @map("paid_at")
+
+  case         Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  caseId     String   @map("case_id")
+  senderName String   @map("sender_name")
+  senderRole String   @map("sender_role")
+  content    String   @db.Text
+  timestamp  String
+
+  case       Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Appointment {
+  id          String   @id @default(uuid())
+  clientName  String   @map("client_name")
+  clientEmail String   @map("client_email")
+  type        String
+  specialist  String
+  date        String
+  time        String
+  duration    String
+  status      String   // Upcoming, Completed, Rescheduled, Cancelled
+  meetingUrl  String   @map("meeting_url")
+  notes       String?  @db.Text
+
+  @@map("appointments")
+}
+
+model Template {
+  id                    String @id @default(uuid())
+  industry              String
+  title                 String
+  description           String @db.Text
+  sampleEndeavor        String @db.Text @map("sample_endeavor")
+  suggestedProng1Points Json   @map("suggested_prong_1_points")
+  suggestedProng2Points Json   @map("suggested_prong_2_points")
+  suggestedProng3Points Json   @map("suggested_prong_3_points")
+  recommendedExhibits   Json   @map("recommended_exhibits")
+
+  @@map("templates")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  userEmail String   @map("user_email")
+  details   String   @db.Text
+  timestamp String
+
+  @@map("audit_logs")
+}
+
+model SystemSetting {
+  id                   String  @id @default(uuid())
+  companyName          String  @default("Babel Global") @map("company_name")
+  specialistId         String  @default("BG-CONSULT-391024") @map("specialist_id")
+  filingFee            String  @default("$715") @map("filing_fee")
+  premiumFee           String  @default("$2,965") @map("premium_fee")
+  asylumFee            String  @default("$300") @map("asylum_fee")
+  whatsappAlerts       Boolean @default(true) @map("whatsapp_alerts")
+  emailRequests        Boolean @default(true) @map("email_requests")
+  appointmentReminders Boolean @default(true) @map("appointment_reminders")
+  quietHours           Boolean @default(true) @map("quiet_hours")
+
+  @@map("system_settings")
+}
