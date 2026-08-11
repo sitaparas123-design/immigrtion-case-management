@@ -564,7 +564,8 @@ const mockAppointments = [
 ];
 
 export async function seed() {
-  console.log('🌱 Database seeding check starting...');
+  try {
+    console.log('🌱 Database seeding check starting...');
 
   // 1. Seed Users
   const userCount = await prisma.user.count();
@@ -857,4 +858,7 @@ export async function seed() {
   }
 
   console.log('🌱 Seeding check complete.');
+  } catch (error: any) {
+    console.warn('⚠️ Database seeding check skipped (database connection unavailable):', error.message || error);
+  }
 }

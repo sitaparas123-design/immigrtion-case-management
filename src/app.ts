@@ -19,7 +19,7 @@ import reportRoutes from './routes/reportRoutes.js';
 import { seed } from './config/seed.js';
 
 // Auto-seed database if empty on startup
-seed().catch(err => console.error('Database seeding failed:', err));
+seed().catch(err => console.warn('Database seeding check skipped:', err.message || err));
 
 const app = express();
 const port = process.env.PORT || 5000;
