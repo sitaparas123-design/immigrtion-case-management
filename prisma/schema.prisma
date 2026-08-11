@@ -183,7 +183,7 @@ model AuditLog {
 
 model SystemSetting {
   id                   String  @id @default(uuid())
-  companyName          String  @default("Babel Global") @map("company_name")
+  companyName          String  @default("Babel Global Editorial Services") @map("company_name")
   specialistId         String  @default("BG-CONSULT-391024") @map("specialist_id")
   filingFee            String  @default("$715") @map("filing_fee")
   premiumFee           String  @default("$2,965") @map("premium_fee")
@@ -192,6 +192,9 @@ model SystemSetting {
   emailRequests        Boolean @default(true) @map("email_requests")
   appointmentReminders Boolean @default(true) @map("appointment_reminders")
   quietHours           Boolean @default(true) @map("quiet_hours")
+
+  feeDefaults          Json?   @map("fee_defaults")
+  practiceAreas        Json?   @map("practice_areas")
 
   @@map("system_settings")
 }

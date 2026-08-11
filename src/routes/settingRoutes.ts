@@ -8,5 +8,6 @@ router.use(authMiddleware);
 
 router.get('/', getSettings);
 router.patch('/', updateSettings);
+router.put('/', updateSettings);
 
 export default router;

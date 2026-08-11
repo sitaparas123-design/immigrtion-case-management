@@ -21,18 +21,14 @@ import { seed } from './config/seed.js';
 // Auto-seed database if empty on startup
 seed().catch(err => console.error('Database seeding failed:', err));
 
-const corsOptions = {
-  origin: [
-    "https://casemanagementcode.netlify.app",
-    "http://localhost:5173",
-    "http://localhost:5174",
-  ],
-};
 const app = express();
 const port = process.env.PORT || 5000;
 
-
-app.use(cors(corsOptions));
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 import { prisma } from './config/db.js';
