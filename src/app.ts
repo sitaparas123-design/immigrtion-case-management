@@ -15,7 +15,10 @@ import appointmentRoutes from './routes/appointmentRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import templateRoutes from './routes/templateRoutes.js';
 import settingRoutes from './routes/settingRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
+
+// Seed API endpoint for easy developer verification
 import { seed } from './config/seed.js';
 
 // Auto-seed database if empty on startup
@@ -87,6 +90,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/users', userRoutes);
 
 // Seed API endpoint for easy developer verification
 app.get('/api/seed', async (req, res) => {
