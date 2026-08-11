@@ -820,7 +820,7 @@ export async function seed() {
         console.log('Seeding system settings...');
         await prisma.systemSetting.create({
             data: {
-                companyName: 'Babel Global',
+                companyName: 'Babel Global Editorial Services',
                 specialistId: 'BG-CONSULT-391024',
                 filingFee: '$715',
                 premiumFee: '$2,965',

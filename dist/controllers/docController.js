@@ -3,10 +3,7 @@ import { uploadToCloudinary } from '../services/cloudinaryService.js';
 import { z } from 'zod';
 const uploadDocSchema = z.object({
     caseId: z.string(),
-    category: z.enum([
-        'CV', 'Degree', 'Transcript', 'Publication', 'Citation Report',
-        'Recommendation Letter', 'Expert Opinion', 'Form I-140', 'ETA-9089', 'Exhibits Index'
-    ])
+    category: z.string().min(1)
 });
 export const uploadDocument = async (req, res) => {
     if (!req.user) {
@@ -75,5 +72,23 @@ export const getDocuments = async (req, res) => {
     }
     catch (error) {
         return res.status(500).json({ success: false, error: error.message });
+    }
+};
+export const deleteDocument = async (req, res) => {
+    if (!req.user) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    const { id } = req.params;
+    try {
+        const document = await prisma.document.findUnique({ where: { id } });
+        if (!document) {
+            return res.status(404).json({ success: false, error: 'Document not found' });
+        }
+        await prisma.document.delete({ where: { id } });
+        return res.json({ success: true, message: 'Document deleted successfully', id });
+    }
+    catch (error) {
+        console.error('Document delete error:', error);
+        return res.status(500).json({ success: false, error: error.message || 'Failed to delete document' });
     }
 };

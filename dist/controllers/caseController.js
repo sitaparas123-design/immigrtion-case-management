@@ -2,7 +2,7 @@ import { prisma } from '../config/db.js';
 import { z } from 'zod';
 const createCaseSchema = z.object({
     clientId: z.string(),
-    petitionCategory: z.enum(['EB-2 NIW', 'EB-1A', 'O-1', 'Immigration Editorial Services', 'Mexico TR Visa']),
+    petitionCategory: z.enum(['EB-2 NIW', 'EB-1A', 'O-1', 'Resume Building', 'Profile Building', 'Immigration Editorial Services', 'Mexico TR Visa']),
     fieldCategory: z.string().min(2),
     assignedWriter: z.string().optional(),
     assignedReviewer: z.string().optional(),
@@ -12,7 +12,7 @@ const createCaseSchema = z.object({
     premiumProcessing: z.boolean()
 });
 const updateStageSchema = z.object({
-    stageId: z.number().int().min(1).max(14)
+    stageId: z.number().int().min(1).max(7)
 });
 export const getCases = async (req, res) => {
     try {
