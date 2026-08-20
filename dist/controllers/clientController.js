@@ -4,13 +4,18 @@ const createClientSchema = z.object({
     name: z.string().min(2).max(100),
     email: z.string().email(),
     phone: z.string().min(5),
-    countryOfBirth: z.string().min(2),
-    currentField: z.string().min(2),
-    highestDegree: z.enum(["Ph.D.", "Master's", "Bachelor's + 5 yrs", "Exceptional Ability"]),
-    university: z.string().min(2),
+    countryOfBirth: z.string().min(2).optional().default("Not Specified"),
+    currentField: z.string().min(2).optional().default("Not Specified"),
+    highestDegree: z.enum(["Ph.D.", "Master's", "Bachelor's + 5 yrs", "Exceptional Ability"]).optional().default("Master's"),
+    university: z.string().min(2).optional().default("Not Specified"),
     citationsCount: z.number().int().nonnegative().optional(),
     publicationsCount: z.number().int().nonnegative().optional(),
-    patentsCount: z.number().int().nonnegative().optional()
+    patentsCount: z.number().int().nonnegative().optional(),
+    dateOfBirth: z.string().optional().nullable(),
+    address: z.string().optional().nullable(),
+    passportNumber: z.string().optional().nullable(),
+    clientCategory: z.string().optional().nullable(),
+    notes: z.string().optional().nullable()
 });
 export const getClients = async (req, res) => {
     try {
@@ -45,7 +50,12 @@ export const createClient = async (req, res) => {
                 citationsCount: result.data.citationsCount ?? 0,
                 publicationsCount: result.data.publicationsCount ?? 0,
                 patentsCount: result.data.patentsCount ?? 0,
-                status: 'Active'
+                status: 'Active',
+                dateOfBirth: result.data.dateOfBirth,
+                address: result.data.address,
+                passportNumber: result.data.passportNumber,
+                clientCategory: result.data.clientCategory,
+                notes: result.data.notes
             }
         });
         return res.status(201).json({ success: true, data: newClient });

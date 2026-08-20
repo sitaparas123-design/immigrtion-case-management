@@ -2,14 +2,18 @@ import { prisma } from '../config/db.js';
 import { z } from 'zod';
 const createCaseSchema = z.object({
     clientId: z.string(),
-    petitionCategory: z.enum(['EB-2 NIW', 'EB-1A', 'O-1', 'Resume Building', 'Profile Building', 'Immigration Editorial Services', 'Mexico TR Visa']),
-    fieldCategory: z.string().min(2),
-    assignedWriter: z.string().optional(),
-    assignedReviewer: z.string().optional(),
-    riskLevel: z.enum(['low', 'medium', 'high']),
-    targetFilingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    uscisServiceCenter: z.enum(['Nebraska (NSC)', 'Texas (TSC)']),
-    premiumProcessing: z.boolean()
+    petitionCategory: z.string().min(2).optional().default('EB-2 NIW'),
+    fieldCategory: z.string().min(2).optional().default('Not Specified'),
+    assignedWriter: z.string().optional().nullable(),
+    assignedReviewer: z.string().optional().nullable(),
+    riskLevel: z.enum(['low', 'medium', 'high']).optional().default('medium'),
+    targetFilingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().default('2026-12-31'),
+    uscisServiceCenter: z.enum(['Nebraska (NSC)', 'Texas (TSC)']).optional().default('Nebraska (NSC)'),
+    premiumProcessing: z.boolean().optional().default(false),
+    title: z.string().min(2),
+    priority: z.string().optional().nullable(),
+    status: z.string().optional().nullable(),
+    notes: z.string().optional().nullable()
 });
 const updateStageSchema = z.object({
     stageId: z.number().int().min(1).max(7)
@@ -73,27 +77,31 @@ export const createCase = async (req, res) => {
     if (!result.success) {
         return res.status(400).json({ success: false, error: 'Validation Failed', details: result.error.errors });
     }
-    const { clientId, petitionCategory, fieldCategory, assignedWriter, assignedReviewer, riskLevel, targetFilingDate, uscisServiceCenter, premiumProcessing } = result.data;
+    const { clientId, petitionCategory, fieldCategory, assignedWriter, assignedReviewer, riskLevel, targetFilingDate, uscisServiceCenter, premiumProcessing, title, priority, status, notes } = result.data;
     try {
         const client = await prisma.client.findUnique({ where: { id: clientId } });
         if (!client) {
             return res.status(404).json({ success: false, error: 'Client not found' });
         }
         const count = await prisma.case.count();
-        const caseNumber = `NIW-2026-00${count + 1}`;
+        const caseNumber = `${petitionCategory === 'EB-1A' ? 'EB1A' : petitionCategory === 'O-1' ? 'O1' : 'NIW'}-2026-0${count + 1}`;
         const newCase = await prisma.case.create({
             data: {
                 caseNumber,
                 clientId,
                 petitionCategory,
-                fieldCategory,
+                fieldCategory: fieldCategory || title,
                 assignedWriter: assignedWriter || null,
                 assignedReviewer: assignedReviewer || null,
                 riskLevel,
                 targetFilingDate,
                 uscisServiceCenter,
                 premiumProcessing,
-                currentStage: 1
+                currentStage: 1,
+                title,
+                priority: priority || 'Medium',
+                status: status || 'Draft',
+                notes: notes || null
             }
         });
         return res.status(201).json({ success: true, data: newCase });
