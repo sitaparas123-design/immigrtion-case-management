@@ -113,11 +113,22 @@ export const deleteClient = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Client not found' });
     }
 
-    // Delete client (associated cases will cascade delete automatically based on schema onDelete: Cascade)
-    await prisma.client.delete({ where: { id } });
+    // Perform atomic transaction to delete tasks, and cascade delete cases & related documents
+    await prisma.$transaction(async (tx) => {
+      const cases = await tx.case.findMany({ where: { clientId: id } });
+      const caseIds = cases.map(c => c.id);
 
-    return res.json({ success: true, message: 'Client and all associated cases deleted successfully', id });
+      if (caseIds.length > 0) {
+        await tx.task.deleteMany({
+          where: { caseId: { in: caseIds } }
+        });
+      }
+
+      await tx.client.delete({ where: { id } });
+    });
+
+    return res.json({ success: true, message: 'Client and all associated cases and tasks deleted successfully', id });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: error.message || 'Failed to delete client profile' });
   }
 };
