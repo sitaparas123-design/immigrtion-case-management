@@ -554,283 +554,288 @@ const mockAppointments = [
     }
 ];
 export async function seed() {
-    console.log('🌱 Database seeding check starting...');
-    // 1. Seed Users
-    const userCount = await prisma.user.count();
-    if (userCount === 0) {
-        console.log('Seeding default users...');
-        for (const u of defaultUsers) {
-            const hashedPassword = await bcrypt.hash(u.password, 10);
-            await prisma.user.create({
-                data: {
-                    name: u.name,
-                    email: u.email,
-                    role: u.role,
-                    password: hashedPassword
-                }
-            });
-        }
-    }
-    // 2. Seed Clients
-    const clientCount = await prisma.client.count();
-    if (clientCount === 0) {
-        console.log('Seeding clients...');
-        for (const c of mockClients) {
-            await prisma.client.create({
-                data: c
-            });
-        }
-    }
-    // 3. Seed Cases
-    const caseCount = await prisma.case.count();
-    if (caseCount === 0) {
-        console.log('Seeding cases...');
-        for (const c of mockCases) {
-            await prisma.case.create({
-                data: {
-                    id: c.id,
-                    caseNumber: c.caseNumber,
-                    clientId: c.clientId,
-                    petitionCategory: c.petitionCategory,
-                    fieldCategory: c.fieldCategory,
-                    currentStage: c.currentStage,
-                    assignedWriter: c.assignedWriter,
-                    assignedReviewer: c.assignedReviewer,
-                    riskLevel: c.riskLevel,
-                    targetFilingDate: c.targetFilingDate,
-                    uscisServiceCenter: c.uscisServiceCenter,
-                    premiumProcessing: c.premiumProcessing,
-                    dhanasarProngs: c.dhanasarProngs || undefined,
-                    eb1aCriteria: c.eb1aCriteria || undefined,
-                    notes: c.notes
-                }
-            });
-        }
-    }
-    // 4. Seed Recommenders
-    const recCount = await prisma.recommender.count();
-    if (recCount === 0) {
-        console.log('Seeding recommenders...');
-        for (const r of mockRecommenders) {
-            await prisma.recommender.create({
-                data: {
-                    id: r.id,
-                    caseId: r.caseId,
-                    name: r.name,
-                    title: r.title,
-                    organization: r.organization,
-                    relationship: r.relationship,
-                    status: r.status,
-                    cvReceived: r.cvReceived,
-                    keyContributionsMentioned: r.keyContributionsMentioned
-                }
-            });
-        }
-    }
-    // 5. Seed Documents
-    const docCount = await prisma.document.count();
-    if (docCount === 0) {
-        console.log('Seeding documents...');
-        for (const d of mockDocuments) {
-            await prisma.document.create({
-                data: {
-                    id: d.id,
-                    caseId: d.caseId,
-                    name: d.name,
-                    category: d.category,
-                    fileSize: d.fileSize,
-                    uploadedBy: d.uploadedBy,
-                    status: d.status,
-                    fileUrl: d.fileUrl,
-                    aiSummary: d.aiSummary
-                }
-            });
-        }
-    }
-    // 6. Seed Tasks
-    const taskCount = await prisma.task.count();
-    if (taskCount === 0) {
-        console.log('Seeding tasks...');
-        for (const t of mockTasks) {
-            await prisma.task.create({
-                data: {
-                    id: t.id,
-                    caseId: t.caseId,
-                    title: t.title,
-                    assignedRole: t.assignedRole,
-                    assignedToName: t.assignedToName,
-                    stageId: t.stageId,
-                    dueDate: t.dueDate,
-                    priority: t.priority,
-                    completed: t.completed
-                }
-            });
-        }
-    }
-    // 7. Seed Payments
-    const paymentCount = await prisma.payment.count();
-    if (paymentCount === 0) {
-        console.log('Seeding payments...');
-        for (const p of mockPayments) {
-            await prisma.payment.create({
-                data: p
-            });
-        }
-    }
-    // 8. Seed Messages
-    const messageCount = await prisma.message.count();
-    if (messageCount === 0) {
-        console.log('Seeding messages...');
-        for (const m of mockMessages) {
-            await prisma.message.create({
-                data: m
-            });
-        }
-    }
-    // 9. Seed Appointments
-    const appointmentCount = await prisma.appointment.count();
-    if (appointmentCount === 0) {
-        console.log('Seeding appointments...');
-        for (const a of mockAppointments) {
-            await prisma.appointment.create({
-                data: a
-            });
-        }
-    }
-    // 10. Seed Templates
-    const templateCount = await prisma.template.count();
-    if (templateCount === 0) {
-        console.log('Seeding templates...');
-        const mockTemplates = [
-            {
-                id: 'tpl-1',
-                industry: 'Artificial Intelligence & Machine Learning',
-                title: 'AI/ML Research Scientist & Infrastructure Engineer',
-                description: 'Tailored for candidates advancing foundation models, computer vision, natural language processing, or AI chip acceleration.',
-                sampleEndeavor: 'Pioneering energy-efficient machine learning architectures for enterprise cybersecurity and real-time medical diagnostics in the United States.',
-                suggestedProng1Points: [
-                    'Aligns with Executive Order on Safe, Secure, and Trustworthy Artificial Intelligence',
-                    'Addresses critical semiconductor efficiency bottlenecks reducing server grid load',
-                    'Enhances national economic competitiveness against international state-sponsored AI initiatives'
-                ],
-                suggestedProng2Points: [
-                    'Top-tier conference publications (NeurIPS, CVPR, ICML) demonstrating field leadership',
-                    'Open-source repository adoption metrics (GitHub stars, PyTorch core integrations)',
-                    'Peer review record for IEEE Transactions and ACM digital libraries'
-                ],
-                suggestedProng3Points: [
-                    'PERM labor certification requires tied employer sponsorship, hindering multi-institutional open AI collaboration',
-                    'Rapid pace of AI model iteration requires immediate research deployment without 2-year PERM processing latency'
-                ],
-                recommendedExhibits: [
-                    'Google Scholar Citation Index & World Percentile Chart',
-                    'GitHub Repository Impact & Downstream Commercial Usage Log',
-                    'Executive Order 14110 AI Policy Excerpt',
-                    'Conference Acceptance Rate Verification Letters'
-                ]
-            },
-            {
-                id: 'tpl-2',
-                industry: 'Clean Energy & Power Infrastructure',
-                title: 'Renewable Microgrid & Battery Systems Specialist',
-                description: 'Designed for engineers developing battery management, hydrogen fuel cells, wind grid integration, or solar forecasting.',
-                sampleEndeavor: 'Engineering resilient microgrid management platforms to integrate high-penetration renewable power into aging US electrical utility networks.',
-                suggestedProng1Points: [
-                    'Fulfills Bipartisan Infrastructure Law mandates for grid modernization',
-                    'Mitigates catastrophic blackout risks during climate extreme weather events',
-                    'Accelerates US transition away from fossil-fuel baseline dependency'
-                ],
-                suggestedProng2Points: [
-                    'Utility-scale pilot deployment certifications and patents',
-                    'State energy commission research awards (e.g. CEC, NYSERDA grants)',
-                    'IEEE Power & Energy Society peer-reviewed articles'
-                ],
-                suggestedProng3Points: [
-                    'Contractual utility deployment model makes standard permanent labor certification unworkable',
-                    'Urgent grid safety risks demand immediate application of candidate proprietary software algorithms'
-                ],
-                recommendedExhibits: [
-                    'US Department of Energy Grid Modernization Index',
-                    'Utility Deployment Verification Letters from Senior Engineers',
-                    'Patent Application Index & Claims Specifications'
-                ]
-            },
-            {
-                id: 'tpl-3',
-                industry: 'Biomedical & Healthcare Innovation',
-                title: 'Computational Oncologist & Medical Device Pioneer',
-                description: 'Designed for researchers working in drug discovery, genomics, surgical robotics, medical image AI, or therapeutics.',
-                sampleEndeavor: 'Developing precision genomic algorithms to predict therapeutic efficacy and reduce adverse drug reactions in underserved cancer patient demographics.',
-                suggestedProng1Points: [
-                    'Directly advances the NIH Cancer Moonshot mission to reduce cancer mortality by 50%',
-                    'Reduces national healthcare expenditure by preventing ineffective drug regimens',
-                    'Promotes health equity in complex multi-ethnic genetic research datasets'
-                ],
-                suggestedProng2Points: [
-                    'High-impact medical journal citations (Nature Medicine, Lancet Oncology, Cell)',
-                    'NIH / NSF grant co-investigator role or SBIR commercialization awards',
-                    'Clinical trial protocol approvals incorporating candidate algorithms'
-                ],
-                suggestedProng3Points: [
-                    'Public health urgency of pediatric and rare cancer research demands immediate waiver of labor certification',
-                    'Academic and hospital mobility essential for cross-institutional patient trial data analysis'
-                ],
-                recommendedExhibits: [
-                    'NCI Cancer Moonshot Official Policy Documentation',
-                    'Clinical Trial Protocol References & Co-Author Verification',
-                    'Journal Impact Factor & Editorial Commentary Letters'
-                ]
+    try {
+        console.log('🌱 Database seeding check starting...');
+        // 1. Seed Users
+        const userCount = await prisma.user.count();
+        if (userCount === 0) {
+            console.log('Seeding default users...');
+            for (const u of defaultUsers) {
+                const hashedPassword = await bcrypt.hash(u.password, 10);
+                await prisma.user.create({
+                    data: {
+                        name: u.name,
+                        email: u.email,
+                        role: u.role,
+                        password: hashedPassword
+                    }
+                });
             }
-        ];
-        for (const t of mockTemplates) {
-            await prisma.template.create({
-                data: t
+        }
+        // 2. Seed Clients
+        const clientCount = await prisma.client.count();
+        if (clientCount === 0) {
+            console.log('Seeding clients...');
+            for (const c of mockClients) {
+                await prisma.client.create({
+                    data: c
+                });
+            }
+        }
+        // 3. Seed Cases
+        const caseCount = await prisma.case.count();
+        if (caseCount === 0) {
+            console.log('Seeding cases...');
+            for (const c of mockCases) {
+                await prisma.case.create({
+                    data: {
+                        id: c.id,
+                        caseNumber: c.caseNumber,
+                        clientId: c.clientId,
+                        petitionCategory: c.petitionCategory,
+                        fieldCategory: c.fieldCategory,
+                        currentStage: c.currentStage,
+                        assignedWriter: c.assignedWriter,
+                        assignedReviewer: c.assignedReviewer,
+                        riskLevel: c.riskLevel,
+                        targetFilingDate: c.targetFilingDate,
+                        uscisServiceCenter: c.uscisServiceCenter,
+                        premiumProcessing: c.premiumProcessing,
+                        dhanasarProngs: c.dhanasarProngs || undefined,
+                        eb1aCriteria: c.eb1aCriteria || undefined,
+                        notes: c.notes
+                    }
+                });
+            }
+        }
+        // 4. Seed Recommenders
+        const recCount = await prisma.recommender.count();
+        if (recCount === 0) {
+            console.log('Seeding recommenders...');
+            for (const r of mockRecommenders) {
+                await prisma.recommender.create({
+                    data: {
+                        id: r.id,
+                        caseId: r.caseId,
+                        name: r.name,
+                        title: r.title,
+                        organization: r.organization,
+                        relationship: r.relationship,
+                        status: r.status,
+                        cvReceived: r.cvReceived,
+                        keyContributionsMentioned: r.keyContributionsMentioned
+                    }
+                });
+            }
+        }
+        // 5. Seed Documents
+        const docCount = await prisma.document.count();
+        if (docCount === 0) {
+            console.log('Seeding documents...');
+            for (const d of mockDocuments) {
+                await prisma.document.create({
+                    data: {
+                        id: d.id,
+                        caseId: d.caseId,
+                        name: d.name,
+                        category: d.category,
+                        fileSize: d.fileSize,
+                        uploadedBy: d.uploadedBy,
+                        status: d.status,
+                        fileUrl: d.fileUrl,
+                        aiSummary: d.aiSummary
+                    }
+                });
+            }
+        }
+        // 6. Seed Tasks
+        const taskCount = await prisma.task.count();
+        if (taskCount === 0) {
+            console.log('Seeding tasks...');
+            for (const t of mockTasks) {
+                await prisma.task.create({
+                    data: {
+                        id: t.id,
+                        caseId: t.caseId,
+                        title: t.title,
+                        assignedRole: t.assignedRole,
+                        assignedToName: t.assignedToName,
+                        stageId: t.stageId,
+                        dueDate: t.dueDate,
+                        priority: t.priority,
+                        completed: t.completed
+                    }
+                });
+            }
+        }
+        // 7. Seed Payments
+        const paymentCount = await prisma.payment.count();
+        if (paymentCount === 0) {
+            console.log('Seeding payments...');
+            for (const p of mockPayments) {
+                await prisma.payment.create({
+                    data: p
+                });
+            }
+        }
+        // 8. Seed Messages
+        const messageCount = await prisma.message.count();
+        if (messageCount === 0) {
+            console.log('Seeding messages...');
+            for (const m of mockMessages) {
+                await prisma.message.create({
+                    data: m
+                });
+            }
+        }
+        // 9. Seed Appointments
+        const appointmentCount = await prisma.appointment.count();
+        if (appointmentCount === 0) {
+            console.log('Seeding appointments...');
+            for (const a of mockAppointments) {
+                await prisma.appointment.create({
+                    data: a
+                });
+            }
+        }
+        // 10. Seed Templates
+        const templateCount = await prisma.template.count();
+        if (templateCount === 0) {
+            console.log('Seeding templates...');
+            const mockTemplates = [
+                {
+                    id: 'tpl-1',
+                    industry: 'Artificial Intelligence & Machine Learning',
+                    title: 'AI/ML Research Scientist & Infrastructure Engineer',
+                    description: 'Tailored for candidates advancing foundation models, computer vision, natural language processing, or AI chip acceleration.',
+                    sampleEndeavor: 'Pioneering energy-efficient machine learning architectures for enterprise cybersecurity and real-time medical diagnostics in the United States.',
+                    suggestedProng1Points: [
+                        'Aligns with Executive Order on Safe, Secure, and Trustworthy Artificial Intelligence',
+                        'Addresses critical semiconductor efficiency bottlenecks reducing server grid load',
+                        'Enhances national economic competitiveness against international state-sponsored AI initiatives'
+                    ],
+                    suggestedProng2Points: [
+                        'Top-tier conference publications (NeurIPS, CVPR, ICML) demonstrating field leadership',
+                        'Open-source repository adoption metrics (GitHub stars, PyTorch core integrations)',
+                        'Peer review record for IEEE Transactions and ACM digital libraries'
+                    ],
+                    suggestedProng3Points: [
+                        'PERM labor certification requires tied employer sponsorship, hindering multi-institutional open AI collaboration',
+                        'Rapid pace of AI model iteration requires immediate research deployment without 2-year PERM processing latency'
+                    ],
+                    recommendedExhibits: [
+                        'Google Scholar Citation Index & World Percentile Chart',
+                        'GitHub Repository Impact & Downstream Commercial Usage Log',
+                        'Executive Order 14110 AI Policy Excerpt',
+                        'Conference Acceptance Rate Verification Letters'
+                    ]
+                },
+                {
+                    id: 'tpl-2',
+                    industry: 'Clean Energy & Power Infrastructure',
+                    title: 'Renewable Microgrid & Battery Systems Specialist',
+                    description: 'Designed for engineers developing battery management, hydrogen fuel cells, wind grid integration, or solar forecasting.',
+                    sampleEndeavor: 'Engineering resilient microgrid management platforms to integrate high-penetration renewable power into aging US electrical utility networks.',
+                    suggestedProng1Points: [
+                        'Fulfills Bipartisan Infrastructure Law mandates for grid modernization',
+                        'Mitigates catastrophic blackout risks during climate extreme weather events',
+                        'Accelerates US transition away from fossil-fuel baseline dependency'
+                    ],
+                    suggestedProng2Points: [
+                        'Utility-scale pilot deployment certifications and patents',
+                        'State energy commission research awards (e.g. CEC, NYSERDA grants)',
+                        'IEEE Power & Energy Society peer-reviewed articles'
+                    ],
+                    suggestedProng3Points: [
+                        'Contractual utility deployment model makes standard permanent labor certification unworkable',
+                        'Urgent grid safety risks demand immediate application of candidate proprietary software algorithms'
+                    ],
+                    recommendedExhibits: [
+                        'US Department of Energy Grid Modernization Index',
+                        'Utility Deployment Verification Letters from Senior Engineers',
+                        'Patent Application Index & Claims Specifications'
+                    ]
+                },
+                {
+                    id: 'tpl-3',
+                    industry: 'Biomedical & Healthcare Innovation',
+                    title: 'Computational Oncologist & Medical Device Pioneer',
+                    description: 'Designed for researchers working in drug discovery, genomics, surgical robotics, medical image AI, or therapeutics.',
+                    sampleEndeavor: 'Developing precision genomic algorithms to predict therapeutic efficacy and reduce adverse drug reactions in underserved cancer patient demographics.',
+                    suggestedProng1Points: [
+                        'Directly advances the NIH Cancer Moonshot mission to reduce cancer mortality by 50%',
+                        'Reduces national healthcare expenditure by preventing ineffective drug regimens',
+                        'Promotes health equity in complex multi-ethnic genetic research datasets'
+                    ],
+                    suggestedProng2Points: [
+                        'High-impact medical journal citations (Nature Medicine, Lancet Oncology, Cell)',
+                        'NIH / NSF grant co-investigator role or SBIR commercialization awards',
+                        'Clinical trial protocol approvals incorporating candidate algorithms'
+                    ],
+                    suggestedProng3Points: [
+                        'Public health urgency of pediatric and rare cancer research demands immediate waiver of labor certification',
+                        'Academic and hospital mobility essential for cross-institutional patient trial data analysis'
+                    ],
+                    recommendedExhibits: [
+                        'NCI Cancer Moonshot Official Policy Documentation',
+                        'Clinical Trial Protocol References & Co-Author Verification',
+                        'Journal Impact Factor & Editorial Commentary Letters'
+                    ]
+                }
+            ];
+            for (const t of mockTemplates) {
+                await prisma.template.create({
+                    data: t
+                });
+            }
+        }
+        // 11. Seed Audit Logs
+        const auditLogCount = await prisma.auditLog.count();
+        if (auditLogCount === 0) {
+            console.log('Seeding audit logs...');
+            const mockAuditLogs = [
+                {
+                    id: 'log-1',
+                    action: 'Account Sign In',
+                    userEmail: 'superadmin@babelglobal.com',
+                    details: 'Signed in to portal. Automatically routed to SUPERADMIN assigned workspace.',
+                    timestamp: '04:30 pm'
+                },
+                {
+                    id: 'log-2',
+                    action: 'Super Admin Initialization',
+                    userEmail: 'admin@juris-flow.com',
+                    details: 'Super Administrator session initialized with unrestricted system access permissions.',
+                    timestamp: '04:28 pm'
+                }
+            ];
+            for (const log of mockAuditLogs) {
+                await prisma.auditLog.create({
+                    data: log
+                });
+            }
+        }
+        // 12. Seed System Settings
+        const settingsCount = await prisma.systemSetting.count();
+        if (settingsCount === 0) {
+            console.log('Seeding system settings...');
+            await prisma.systemSetting.create({
+                data: {
+                    companyName: 'Babel Global Editorial Services',
+                    specialistId: 'BG-CONSULT-391024',
+                    filingFee: '$715',
+                    premiumFee: '$2,965',
+                    asylumFee: '$300',
+                    whatsappAlerts: true,
+                    emailRequests: true,
+                    appointmentReminders: true,
+                    quietHours: true
+                }
             });
         }
+        console.log('🌱 Seeding check complete.');
     }
-    // 11. Seed Audit Logs
-    const auditLogCount = await prisma.auditLog.count();
-    if (auditLogCount === 0) {
-        console.log('Seeding audit logs...');
-        const mockAuditLogs = [
-            {
-                id: 'log-1',
-                action: 'Account Sign In',
-                userEmail: 'superadmin@babelglobal.com',
-                details: 'Signed in to portal. Automatically routed to SUPERADMIN assigned workspace.',
-                timestamp: '04:30 pm'
-            },
-            {
-                id: 'log-2',
-                action: 'Super Admin Initialization',
-                userEmail: 'admin@juris-flow.com',
-                details: 'Super Administrator session initialized with unrestricted system access permissions.',
-                timestamp: '04:28 pm'
-            }
-        ];
-        for (const log of mockAuditLogs) {
-            await prisma.auditLog.create({
-                data: log
-            });
-        }
+    catch (error) {
+        console.warn('⚠️ Database seeding check skipped (database connection unavailable):', error.message || error);
     }
-    // 12. Seed System Settings
-    const settingsCount = await prisma.systemSetting.count();
-    if (settingsCount === 0) {
-        console.log('Seeding system settings...');
-        await prisma.systemSetting.create({
-            data: {
-                companyName: 'Babel Global Editorial Services',
-                specialistId: 'BG-CONSULT-391024',
-                filingFee: '$715',
-                premiumFee: '$2,965',
-                asylumFee: '$300',
-                whatsappAlerts: true,
-                emailRequests: true,
-                appointmentReminders: true,
-                quietHours: true
-            }
-        });
-    }
-    console.log('🌱 Seeding check complete.');
 }

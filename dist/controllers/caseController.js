@@ -151,3 +151,97 @@ export const createRecommender = async (req, res) => {
         return res.status(500).json({ success: false, error: error.message });
     }
 };
+const intakeCaseSchema = z.object({
+    clientName: z.string().min(2).max(100),
+    clientEmail: z.string().email(),
+    phone: z.string().min(5).optional(),
+    countryOfBirth: z.string().min(2).optional(),
+    currentField: z.string().min(2),
+    highestDegree: z.enum(["Ph.D.", "Master's", "Bachelor's + 5 yrs", "Exceptional Ability"]).optional(),
+    university: z.string().min(2).optional(),
+    petitionCategory: z.enum(['EB-2 NIW', 'EB-1A', 'O-1', 'Resume Building', 'Profile Building', 'Immigration Editorial Services', 'Mexico TR Visa']),
+    fieldCategory: z.string().min(2),
+    assignedWriter: z.string().optional(),
+    assignedReviewer: z.string().optional(),
+    riskLevel: z.enum(['low', 'medium', 'high']).optional(),
+    targetFilingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    uscisServiceCenter: z.enum(['Nebraska (NSC)', 'Texas (TSC)']),
+    premiumProcessing: z.boolean()
+});
+export const intakeCase = async (req, res) => {
+    const result = intakeCaseSchema.safeParse(req.body);
+    if (!result.success) {
+        return res.status(400).json({ success: false, error: 'Validation Failed: ' + result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '), details: result.error.errors });
+    }
+    const data = result.data;
+    try {
+        const transactionResult = await prisma.$transaction(async (tx) => {
+            let client = await tx.client.findUnique({ where: { email: data.clientEmail } });
+            if (client) {
+                const existingCase = await tx.case.findFirst({
+                    where: {
+                        clientId: client.id,
+                        petitionCategory: data.petitionCategory
+                    }
+                });
+                if (existingCase) {
+                    throw new Error('DUPLICATE_CASE');
+                }
+            }
+            else {
+                client = await tx.client.create({
+                    data: {
+                        name: data.clientName,
+                        email: data.clientEmail,
+                        phone: data.phone || '+1 (555) 012-3456',
+                        countryOfBirth: data.countryOfBirth || 'United States',
+                        currentField: data.currentField,
+                        highestDegree: data.highestDegree || 'Ph.D.',
+                        university: data.university || 'Standard University',
+                        status: 'Active'
+                    }
+                });
+            }
+            const count = await tx.case.count();
+            const caseNumber = `NIW-2026-00${count + 1}`;
+            const newCase = await tx.case.create({
+                data: {
+                    caseNumber,
+                    clientId: client.id,
+                    petitionCategory: data.petitionCategory,
+                    fieldCategory: data.fieldCategory,
+                    assignedWriter: data.assignedWriter || 'Petition Drafter 1',
+                    assignedReviewer: data.assignedReviewer || 'Senior Reviewer',
+                    riskLevel: data.riskLevel || 'low',
+                    targetFilingDate: data.targetFilingDate || '2026-12-31',
+                    uscisServiceCenter: data.uscisServiceCenter,
+                    premiumProcessing: data.premiumProcessing,
+                    currentStage: 1
+                },
+                include: {
+                    client: true,
+                    documents: true,
+                    recommenders: true
+                }
+            });
+            return { client, caseItem: newCase };
+        });
+        return res.status(201).json({
+            success: true,
+            message: 'Intake process completed and saved to database.',
+            data: transactionResult.caseItem
+        });
+    }
+    catch (error) {
+        if (error.message === 'DUPLICATE_CASE') {
+            return res.status(409).json({
+                success: false,
+                error: 'Duplicate record: Candidate already has a case registered with this petition category.'
+            });
+        }
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Database error: Failed to process intake.'
+        });
+    }
+};
