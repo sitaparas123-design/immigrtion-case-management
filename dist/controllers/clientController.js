@@ -27,9 +27,9 @@ export const getClients = async (req, res) => {
         const clients = await prisma.client.findMany({
             orderBy: { createdAt: 'desc' }
         });
-        // Isolate data: regular admins, writers, and reviewers can only see clients created by them
+        // Admins and Superadmins have full visibility of all clients in the directory
         let filteredClients = clients;
-        if (userRole && userRole !== 'superadmin') {
+        if (userRole && userRole !== 'superadmin' && userRole !== 'admin') {
             filteredClients = clients.filter(client => {
                 const notes = client.notes || '';
                 if (!notes.includes('Created By:'))

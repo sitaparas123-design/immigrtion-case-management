@@ -34,9 +34,9 @@ export const getCases = async (req, res) => {
             },
             orderBy: { lastUpdated: 'desc' }
         });
-        // Isolate data: regular admins, writers, and reviewers can only see cases assigned to them or created by them
+        // Admins and Superadmins have full management visibility of all cases
         let filteredCases = cases;
-        if (userRole && userRole !== 'superadmin') {
+        if (userRole && userRole !== 'superadmin' && userRole !== 'admin') {
             filteredCases = cases.filter(c => {
                 if (userRole === 'client') {
                     return c.client?.email?.toLowerCase() === userEmail.toLowerCase() || cases.length > 0;
