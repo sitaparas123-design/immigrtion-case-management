@@ -55,7 +55,57 @@ export async function seed() {
       }
     });
 
-    console.log('✨ Live database 100% purged! ONLY superadmin@babelglobal.com (password123) remains.');
+    // Create initial demo client and case
+    const demoClient = await prisma.client.create({
+      data: {
+        name: 'Dr. Alexander Vance',
+        email: 'alexander.vance@example.com',
+        phone: '+1 (555) 0192-384',
+        countryOfBirth: 'Germany',
+        currentField: 'Quantum Computing & Artificial Intelligence',
+        highestDegree: 'Ph.D.',
+        university: 'MIT',
+        citationsCount: 342,
+        publicationsCount: 18,
+        patentsCount: 4,
+        status: 'Active',
+        dateOfBirth: '1988-04-12',
+        address: '77 Massachusetts Ave, Cambridge, MA 02139',
+        passportNumber: 'DE9834210',
+        clientCategory: 'EB-2 NIW',
+        notes: 'Priority applicant for EB-2 National Interest Waiver'
+      }
+    });
+
+    await prisma.user.create({
+      data: {
+        name: 'Dr. Alexander Vance',
+        email: 'alexander.vance@example.com',
+        role: 'client',
+        password: hashedPassword
+      }
+    });
+
+    await prisma.case.create({
+      data: {
+        caseNumber: 'NIW-2026-001',
+        clientId: demoClient.id,
+        petitionCategory: 'EB-2 NIW',
+        fieldCategory: 'Quantum Computing & AI',
+        currentStage: 9,
+        assignedWriter: 'Petition Drafter 1',
+        assignedReviewer: 'Senior Reviewer',
+        riskLevel: 'low',
+        targetFilingDate: '2026-12-31',
+        uscisServiceCenter: 'Nebraska (NSC)',
+        premiumProcessing: true,
+        title: 'EB-2 NIW Petition - Dr. Alexander Vance',
+        priority: 'High',
+        status: 'In Drafting'
+      }
+    });
+
+    console.log('✨ Live database seeded successfully with superadmin & demo case (Dr. Alexander Vance)!');
   } catch (error: any) {
     console.warn('⚠️ Database cleanup check failed:', error.message || error);
     throw error;
