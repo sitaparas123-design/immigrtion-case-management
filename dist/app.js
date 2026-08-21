@@ -18,6 +18,16 @@ import userRoutes from './routes/userRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 // Seed API endpoint for easy developer verification
 import { seed } from './config/seed.js';
+import { execSync } from 'child_process';
+// Auto-sync Prisma schema with database on startup
+try {
+    console.log('🔄 Auto-pushing Prisma schema to database...');
+    execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' });
+    console.log('✅ Database schema synchronized.');
+}
+catch (err) {
+    console.warn('⚠️ Database schema push check skipped:', err.message || err);
+}
 // Auto-seed database if empty on startup
 seed().catch(err => console.warn('Database seeding check skipped:', err.message || err));
 const app = express();
@@ -84,6 +94,12 @@ app.use('/api/users', userRoutes);
 // Seed API endpoint for easy developer verification
 app.get('/api/seed', async (req, res) => {
     try {
+        try {
+            execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' });
+        }
+        catch (dbPushErr) {
+            console.warn('DB Push in seed endpoint warning:', dbPushErr.message || dbPushErr);
+        }
         await seed();
         const counts = {
             users: await prisma.user.count(),
