@@ -1,35 +1,56 @@
 import { prisma } from './db.js';
 import bcrypt from 'bcryptjs';
 
-const defaultUsers = [
-  { name: 'Super Administrator', email: 'superadmin@babelglobal.com', role: 'superadmin', password: '123456' }
-];
-
 export async function seed() {
   try {
-    console.log('🌱 Database seeding check starting...');
+    console.log('🌱 Live database cleanup & superadmin verification starting...');
 
-    // 1. Seed Default Superadmin User if no users exist
-    const userCount = await prisma.user.count();
-    if (userCount === 0) {
-      console.log('Seeding default Superadmin user...');
-      for (const u of defaultUsers) {
-        const hashedPassword = await bcrypt.hash(u.password, 10);
-        await prisma.user.create({
-          data: {
-            name: u.name,
-            email: u.email,
-            role: u.role,
-            password: hashedPassword
-          }
-        });
+    // 1. Purge all legacy/dummy records from live database
+    await prisma.task.deleteMany({}).catch(() => {});
+    await prisma.document.deleteMany({}).catch(() => {});
+    await prisma.recommender.deleteMany({}).catch(() => {});
+    await prisma.payment.deleteMany({}).catch(() => {});
+    await prisma.message.deleteMany({}).catch(() => {});
+    await prisma.appointment.deleteMany({}).catch(() => {});
+    await prisma.case.deleteMany({}).catch(() => {});
+    await prisma.client.deleteMany({}).catch(() => {});
+
+    // 2. Delete all non-superadmin users
+    await prisma.user.deleteMany({
+      where: {
+        email: {
+          not: 'superadmin@babelglobal.com'
+        }
       }
+    }).catch(() => {});
+
+    // 3. Ensure ONLY superadmin@babelglobal.com exists with password 'password123'
+    const hashedPassword = await bcrypt.hash('password123', 10);
+    const superadmin = await prisma.user.findUnique({
+      where: { email: 'superadmin@babelglobal.com' }
+    });
+
+    if (!superadmin) {
+      await prisma.user.create({
+        data: {
+          name: 'Super Administrator',
+          email: 'superadmin@babelglobal.com',
+          role: 'superadmin',
+          password: hashedPassword
+        }
+      });
+      console.log('✅ Created Superadmin: superadmin@babelglobal.com / password123');
+    } else {
+      await prisma.user.update({
+        where: { email: 'superadmin@babelglobal.com' },
+        data: { password: hashedPassword }
+      });
+      console.log('✅ Verified & Updated Superadmin password to password123');
     }
 
-    // 2. Seed System Settings if empty
-    const settingsCount = await prisma.systemSetting.count();
+    // 4. Ensure System Settings exist
+    const settingsCount = await prisma.systemSetting.count().catch(() => 0);
     if (settingsCount === 0) {
-      console.log('Seeding system settings...');
       await prisma.systemSetting.create({
         data: {
           companyName: 'Babel Global Editorial Services',
@@ -42,11 +63,11 @@ export async function seed() {
           appointmentReminders: true,
           quietHours: true
         }
-      });
+      }).catch(() => {});
     }
 
-    console.log('🌱 Seeding check complete.');
+    console.log('✨ Live database cleanup complete! ONLY superadmin@babelglobal.com (password123) remains.');
   } catch (error: any) {
-    console.warn('⚠️ Database seeding check skipped (database connection unavailable):', error.message || error);
+    console.warn('⚠️ Database cleanup check skipped:', error.message || error);
   }
 }

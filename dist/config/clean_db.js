@@ -26,7 +26,7 @@ async function cleanDatabase() {
         where: { email: 'superadmin@babelglobal.com' }
     });
     if (!superadmin) {
-        const hashedPassword = await bcrypt.hash('123456', 10);
+        const hashedPassword = await bcrypt.hash('password123', 10);
         await prisma.user.create({
             data: {
                 name: 'Super Administrator',
@@ -35,15 +35,15 @@ async function cleanDatabase() {
                 password: hashedPassword
             }
         });
-        console.log('✅ Created fresh Super Administrator account: superadmin@babelglobal.com / 123456');
+        console.log('✅ Created fresh Super Administrator account: superadmin@babelglobal.com / password123');
     }
     else {
-        const hashedPassword = await bcrypt.hash('123456', 10);
+        const hashedPassword = await bcrypt.hash('password123', 10);
         await prisma.user.update({
             where: { email: 'superadmin@babelglobal.com' },
             data: { password: hashedPassword }
         });
-        console.log('✅ Retained Super Administrator account: superadmin@babelglobal.com / 123456');
+        console.log('✅ Retained Super Administrator account: superadmin@babelglobal.com / password123');
     }
     console.log('✨ MySQL Database successfully purged! ONLY superadmin@babelglobal.com remains.');
 }
