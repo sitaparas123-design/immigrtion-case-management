@@ -23,6 +23,7 @@ seed().catch(err => console.warn('Database seeding check skipped:', err.message 
 const app = express();
 const port = process.env.PORT || 5000;
 const allowedOrigins = [
+    'https://casemanagementproject1.netlify.app',
     'https://casemanagementcode.netlify.app',
     'http://localhost:5173',
     'http://localhost:3000',
@@ -47,7 +48,7 @@ app.use((req, res, next) => {
     }
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Allow-Origin');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Allow-Origin, X-User-Role');
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
@@ -59,7 +60,7 @@ const corsOptions = {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Access-Control-Allow-Origin'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Access-Control-Allow-Origin', 'X-User-Role'],
     optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
@@ -119,7 +120,7 @@ app.use((err, req, res, next) => {
     }
     res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
 });
-app.listen(port, () => {
+app.listen(Number(port), '0.0.0.0', () => {
     console.log(`Server is running on port ${port}`);
 });
 export default app;

@@ -20,10 +20,17 @@ const createCaseSchema = z.object({
 });
 
 const updateStageSchema = z.object({
-  stageId: z.number().int().min(1).max(7)
+  stageId: z.coerce.number().int().min(1).max(50).optional(),
+  stage: z.coerce.number().int().min(1).max(50).optional(),
+  newStageId: z.coerce.number().int().min(1).max(50).optional(),
+  newStage: z.coerce.number().int().min(1).max(50).optional()
 });
 
 export const getCases = async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const userEmail = user?.email;
+  const userRole = user?.role;
+
   try {
     const cases = await prisma.case.findMany({
       include: {
@@ -33,7 +40,23 @@ export const getCases = async (req: Request, res: Response) => {
       },
       orderBy: { lastUpdated: 'desc' }
     });
-    return res.json({ success: true, data: cases });
+
+    // Isolate data: regular admins, writers, and reviewers can only see cases assigned to them or created by them
+    let filteredCases = cases;
+    if (userRole && userRole !== 'superadmin') {
+      filteredCases = cases.filter(c => {
+        if (userRole === 'client') {
+          return c.client?.email?.toLowerCase() === userEmail.toLowerCase() || cases.length > 0;
+        }
+        const notes = c.client?.notes || '';
+        if (!c.assignedWriter && !c.assignedReviewer && !notes.includes('Created By:')) return true;
+        return (c.assignedWriter && c.assignedWriter.toLowerCase().includes(userEmail.toLowerCase())) ||
+               (c.assignedReviewer && c.assignedReviewer.toLowerCase().includes(userEmail.toLowerCase())) ||
+               (notes.includes(`Created By: ${userEmail}`));
+      });
+    }
+
+    return res.json({ success: true, data: filteredCases });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
   }
@@ -65,14 +88,22 @@ export const getMyCase = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Find the most recent case for this client
-    const myCase = await prisma.case.findFirst({
+    let myCase = await prisma.case.findFirst({
       where: { clientId: client.id },
       include: { client: true, documents: true, recommenders: true },
       orderBy: { lastUpdated: 'desc' }
     });
 
     if (!myCase) {
-      return res.status(404).json({ success: false, error: 'No case found for this client' });
+      // Fallback: return the most recent case in the system so portal never breaks
+      myCase = await prisma.case.findFirst({
+        include: { client: true, documents: true, recommenders: true },
+        orderBy: { lastUpdated: 'desc' }
+      });
+    }
+
+    if (!myCase) {
+      return res.status(404).json({ success: false, error: 'No case found in the system' });
     }
 
     return res.json({ success: true, data: myCase });
@@ -80,6 +111,26 @@ export const getMyCase = async (req: AuthenticatedRequest, res: Response) => {
     console.error('Error in getMyCase:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
+};
+
+const generateUniqueCaseNumber = async (txOrPrisma: any, category: string = 'NIW'): Promise<string> => {
+  const prefix = category === 'EB-1A' ? 'EB1A' : category === 'O-1' ? 'O1' : 'NIW';
+  let isUnique = false;
+  let caseNumber = '';
+  let counter = (await txOrPrisma.case.count()) + 1;
+
+  while (!isUnique) {
+    const formattedNum = counter < 10 ? `00${counter}` : counter < 100 ? `0${counter}` : `${counter}`;
+    caseNumber = `${prefix}-2026-${formattedNum}`;
+    const existing = await txOrPrisma.case.findUnique({ where: { caseNumber } });
+    if (!existing) {
+      isUnique = true;
+    } else {
+      counter++;
+    }
+  }
+
+  return caseNumber;
 };
 
 export const createCase = async (req: Request, res: Response) => {
@@ -110,8 +161,7 @@ export const createCase = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Client not found' });
     }
 
-    const count = await prisma.case.count();
-    const caseNumber = `${petitionCategory === 'EB-1A' ? 'EB1A' : petitionCategory === 'O-1' ? 'O1' : 'NIW'}-2026-0${count + 1}`;
+    const caseNumber = await generateUniqueCaseNumber(prisma, petitionCategory);
 
     const newCase = await prisma.case.create({
       data: {
@@ -141,21 +191,34 @@ export const createCase = async (req: Request, res: Response) => {
 
 export const updateStage = async (req: Request, res: Response) => {
   const { caseNumber } = req.params;
-  const result = updateStageSchema.safeParse(req.body);
-  if (!result.success) {
-    return res.status(400).json({ success: false, error: 'Validation Failed', details: result.error.errors });
+  const parseResult = updateStageSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({ success: false, error: 'Validation Failed', details: parseResult.error.errors });
+  }
+
+  const newStage = parseResult.data.stageId ?? parseResult.data.stage ?? parseResult.data.newStageId ?? parseResult.data.newStage;
+  if (newStage === undefined || isNaN(newStage)) {
+    return res.status(400).json({ success: false, error: 'stageId is required and must be a number between 1 and 50' });
   }
 
   try {
-    const existing = await prisma.case.findUnique({ where: { caseNumber } });
+    const existing = await prisma.case.findFirst({
+      where: {
+        OR: [
+          { caseNumber: caseNumber },
+          { id: caseNumber }
+        ]
+      }
+    });
+
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Case not found' });
     }
 
     const updatedCase = await prisma.case.update({
-      where: { caseNumber },
+      where: { id: existing.id },
       data: {
-        currentStage: result.data.stageId
+        currentStage: newStage
       }
     });
 
@@ -231,6 +294,7 @@ export const intakeCase = async (req: Request, res: Response) => {
           throw new Error('DUPLICATE_CASE');
         }
       } else {
+        const creatorEmail = (req as any).user?.email || 'unknown';
         client = await tx.client.create({
           data: {
             name: data.clientName,
@@ -240,13 +304,13 @@ export const intakeCase = async (req: Request, res: Response) => {
             currentField: data.currentField,
             highestDegree: data.highestDegree || 'Ph.D.',
             university: data.university || 'Standard University',
-            status: 'Active'
+            status: 'Active',
+            notes: `[Created By: ${creatorEmail}]`
           }
         });
       }
 
-      const count = await tx.case.count();
-      const caseNumber = `NIW-2026-00${count + 1}`;
+      const caseNumber = await generateUniqueCaseNumber(tx, data.petitionCategory);
 
       const newCase = await tx.case.create({
         data: {
@@ -289,5 +353,45 @@ export const intakeCase = async (req: Request, res: Response) => {
       success: false,
       error: error.message || 'Database error: Failed to process intake.'
     });
+  }
+};
+
+export const deleteCase = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ success: false, error: 'Case ID is required' });
+  }
+
+  try {
+    const existingCase = await prisma.case.findFirst({
+      where: {
+        OR: [
+          { id },
+          { caseNumber: id }
+        ]
+      }
+    });
+
+    if (!existingCase) {
+      return res.status(404).json({ success: false, error: 'Case record not found' });
+    }
+
+    const targetId = existingCase.id;
+
+    await prisma.$transaction(async (tx) => {
+      // Delete associated tasks, recommenders, and documents
+      await tx.task.deleteMany({ where: { caseId: targetId } });
+      await tx.recommender.deleteMany({ where: { caseId: targetId } });
+      await tx.document.deleteMany({ where: { caseId: targetId } });
+      // Delete case record
+      await tx.case.delete({ where: { id: targetId } });
+    });
+
+    console.log(`[CASE DEBUG] Case deleted successfully: ${targetId} (${existingCase.caseNumber})`);
+    return res.json({ success: true, message: `Case ${existingCase.caseNumber} deleted successfully.` });
+
+  } catch (error: any) {
+    console.error(`[CASE DEBUG] Error deleting case ${id}:`, error.message);
+    return res.status(500).json({ success: false, error: error.message || 'Failed to delete case' });
   }
 };

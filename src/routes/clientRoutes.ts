@@ -8,7 +8,7 @@ const router = Router();
 router.use(authMiddleware);
 
 // Super Admin & Admin can view client list
-router.get('/', roleMiddleware(['superadmin', 'admin', 'writer', 'reviewer']), getClients);
+router.get('/', roleMiddleware(['superadmin', 'admin', 'writer', 'reviewer', 'client']), getClients);
 
 // Super Admin & Admin can create clients
 router.post('/', roleMiddleware(['superadmin', 'admin']), createClient);

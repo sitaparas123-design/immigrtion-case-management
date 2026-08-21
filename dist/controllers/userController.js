@@ -5,20 +5,22 @@ const createAdminSchema = z.object({
     name: z.string().min(2).max(100),
     email: z.string().trim().toLowerCase().email(),
     password: z.string().min(6),
+    role: z.enum(['admin', 'writer', 'reviewer', 'superadmin']).optional().default('admin'),
     status: z.enum(['Active', 'Inactive']).optional().default('Active')
 });
 const updateAdminSchema = z.object({
     name: z.string().min(2).max(100).optional(),
     email: z.string().trim().toLowerCase().email().optional(),
     password: z.string().min(6).optional().or(z.literal('')),
+    role: z.enum(['admin', 'writer', 'reviewer', 'superadmin']).optional(),
     status: z.enum(['Active', 'Inactive']).optional()
 });
 // In-memory status store for user account activation state if column is omitted from DB schema
-const userStatusStore = {};
+export const userStatusStore = {};
 export const getAdmins = async (req, res) => {
     try {
         const admins = await prisma.user.findMany({
-            where: { role: 'admin' },
+            where: { role: { in: ['admin', 'writer', 'reviewer', 'superadmin'] } },
             select: {
                 id: true,
                 name: true,
@@ -43,7 +45,7 @@ export const createAdmin = async (req, res) => {
     if (!result.success) {
         return res.status(400).json({ success: false, error: 'Validation Failed', details: result.error.errors });
     }
-    const { name, email, password, status } = result.data;
+    const { name, email, password, role, status } = result.data;
     try {
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
@@ -55,7 +57,7 @@ export const createAdmin = async (req, res) => {
                 name,
                 email,
                 password: hashedPassword,
-                role: 'admin'
+                role: role || 'admin'
             },
             select: {
                 id: true,

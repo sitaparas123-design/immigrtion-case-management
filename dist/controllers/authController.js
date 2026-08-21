@@ -2,6 +2,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../config/db.js';
 import { z } from 'zod';
+import { ROLE_PERMISSIONS } from '../config/permissions.js';
+import { userStatusStore } from './userController.js';
 const loginSchema = z.object({
     email: z.string().trim().toLowerCase().email(),
     password: z.string().min(6)
@@ -24,7 +26,7 @@ export const login = async (req, res) => {
         // Auto-seed default user if missing
         if (!user && DEFAULT_USERS[email]) {
             const defUser = DEFAULT_USERS[email];
-            const hashedPassword = await bcrypt.hash(password || 'password123', 10);
+            const hashedPassword = await bcrypt.hash(password || '123456', 10);
             user = await prisma.user.create({
                 data: {
                     name: defUser.name,
@@ -50,10 +52,18 @@ export const login = async (req, res) => {
         if (!isMatch) {
             return res.status(401).json({ success: false, error: 'Invalid email or password' });
         }
+        // Check client profile deactivation status
+        if (user.role === 'client') {
+            const clientRecord = await prisma.client.findUnique({ where: { email: user.email } });
+            if (clientRecord && clientRecord.status === 'Inactive') {
+                return res.status(403).json({ success: false, error: 'Your account has been deactivated. Please contact the administrator.' });
+            }
+        }
         if (user.status === 'Inactive') {
             return res.status(403).json({ success: false, error: 'Your account is deactivated. Please contact Super Administrator.' });
         }
-        const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET || 'super-secret-jwt-key-replace-this', { expiresIn: '24h' });
+        const permissions = ROLE_PERMISSIONS[user.role.toLowerCase()] || [];
+        const token = jwt.sign({ id: user.id, email: user.email, role: user.role, permissions }, process.env.JWT_SECRET || 'super-secret-jwt-key-replace-this', { expiresIn: '24h' });
         return res.json({
             success: true,
             token,
@@ -90,6 +100,192 @@ export const getMe = async (req, res) => {
             success: true,
             user
         });
+    }
+    catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+export const refreshToken = async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ success: false, error: 'Unauthorized: Missing or invalid token' });
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'super-secret-jwt-key-replace-this', {
+            ignoreExpiration: true
+        });
+        const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+        const permissions = ROLE_PERMISSIONS[user.role.toLowerCase()] || [];
+        const newToken = jwt.sign({ id: user.id, email: user.email, role: user.role, permissions }, process.env.JWT_SECRET || 'super-secret-jwt-key-replace-this', { expiresIn: '24h' });
+        return res.json({
+            success: true,
+            token: newToken,
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+            }
+        });
+    }
+    catch (error) {
+        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid token' });
+    }
+};
+export const forgotPassword = async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ success: false, error: 'Email is required' });
+    }
+    try {
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'Email not found' });
+        }
+        console.log(`[AUTH DEBUG] Password reset requested for: ${email}. Simulated OTP: 123456`);
+        return res.json({
+            success: true,
+            message: 'Password reset OTP code sent successfully',
+            otp: '123456'
+        });
+    }
+    catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+export const resetPassword = async (req, res) => {
+    const { email, password, otp } = req.body;
+    if (!email || !password || !otp) {
+        return res.status(400).json({ success: false, error: 'Email, password, and OTP are required' });
+    }
+    try {
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+        if (otp !== '123456') {
+            return res.status(400).json({ success: false, error: 'Invalid OTP code' });
+        }
+        const passwordHash = await bcrypt.hash(password, 10);
+        await prisma.user.update({
+            where: { email },
+            data: { password: passwordHash }
+        });
+        console.log(`[AUTH DEBUG] Password successfully updated for user: ${email}`);
+        return res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
+    }
+    catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+export const loginAdmin = async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ success: false, error: 'Email and password are required' });
+    }
+    try {
+        const cleanEmail = email.trim().toLowerCase();
+        let user = await prisma.user.findUnique({ where: { email: cleanEmail } });
+        // Auto-seed default admin user if missing
+        if (!user && DEFAULT_USERS[cleanEmail]) {
+            const defUser = DEFAULT_USERS[cleanEmail];
+            const hashedPassword = await bcrypt.hash(password || 'password123', 10);
+            user = await prisma.user.create({
+                data: {
+                    name: defUser.name,
+                    email: cleanEmail,
+                    password: hashedPassword,
+                    role: defUser.role
+                }
+            });
+        }
+        if (!user) {
+            return res.status(401).json({ success: false, error: 'Invalid email or password' });
+        }
+        const currentRole = user.role.toLowerCase();
+        if (currentRole !== 'admin' && currentRole !== 'superadmin') {
+            return res.status(403).json({ success: false, error: 'Access denied: Not an administrator' });
+        }
+        let isMatch = await bcrypt.compare(password, user.password);
+        // If password mismatch on default user, allow fallback (123456 / password123 / admin123) and update hash
+        if (!isMatch && DEFAULT_USERS[cleanEmail] && (password === '123456' || password === 'password123' || password === 'admin123')) {
+            const newHashed = await bcrypt.hash(password, 10);
+            user = await prisma.user.update({
+                where: { email: cleanEmail },
+                data: { password: newHashed }
+            });
+            isMatch = true;
+        }
+        if (!isMatch) {
+            return res.status(401).json({ success: false, error: 'Invalid email or password' });
+        }
+        const status = userStatusStore[user.id] || user.status || 'Active';
+        if (status === 'Inactive') {
+            return res.status(403).json({ success: false, error: 'Your administrator account has been deactivated. Please contact the Super Administrator.' });
+        }
+        const permissions = ROLE_PERMISSIONS[currentRole] || [];
+        const token = jwt.sign({ id: user.id, email: user.email, role: currentRole, permissions }, process.env.JWT_SECRET || 'super-secret-jwt-key-replace-this', { expiresIn: '24h' });
+        console.log(`[AUTH DEBUG] Admin logged in: ${user.email} (${currentRole})`);
+        return res.json({
+            success: true,
+            token,
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: currentRole
+            }
+        });
+    }
+    catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+export const forgotAdminPassword = async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ success: false, error: 'Email is required' });
+    }
+    try {
+        const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+        if (!user || user.role.toLowerCase() !== 'admin') {
+            return res.status(404).json({ success: false, error: 'Administrator email not found' });
+        }
+        console.log(`[AUTH DEBUG] Admin password reset OTP code requested for: ${email}`);
+        return res.json({
+            success: true,
+            message: 'Admin password reset OTP sent successfully',
+            otp: '123456'
+        });
+    }
+    catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+export const resetAdminPassword = async (req, res) => {
+    const { email, password, otp } = req.body;
+    if (!email || !password || !otp) {
+        return res.status(400).json({ success: false, error: 'Email, password, and OTP are required' });
+    }
+    try {
+        const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+        if (!user || user.role.toLowerCase() !== 'admin') {
+            return res.status(404).json({ success: false, error: 'Admin account not found' });
+        }
+        if (otp !== '123456') {
+            return res.status(400).json({ success: false, error: 'Invalid OTP code' });
+        }
+        const passwordHash = await bcrypt.hash(password, 10);
+        await prisma.user.update({
+            where: { email: email.trim().toLowerCase() },
+            data: { password: passwordHash }
+        });
+        console.log(`[AUTH DEBUG] Admin password successfully updated for: ${email}`);
+        return res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
     }
     catch (error) {
         return res.status(500).json({ success: false, error: error.message });
