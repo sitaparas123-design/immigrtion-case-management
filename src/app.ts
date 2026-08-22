@@ -85,6 +85,17 @@ const corsOptions: cors.CorsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// Custom middleware to catch JSON syntax errors from body-parser gracefully (400 instead of 500)
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err instanceof SyntaxError && 'body' in err && (err as any).status === 400) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid JSON payload in request body. Ensure keys and strings are enclosed in valid double quotes.'
+    });
+  }
+  next(err);
+});
+
 import { prisma } from './config/db.js';
 
 // Main routers

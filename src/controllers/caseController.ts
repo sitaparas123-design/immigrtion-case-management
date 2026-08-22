@@ -28,8 +28,8 @@ const updateStageSchema = z.object({
 
 export const getCases = async (req: Request, res: Response) => {
   const user = (req as any).user;
-  const userEmail = user?.email;
-  const userRole = user?.role;
+  const userEmail = user?.email || '';
+  const userRole = user?.role || '';
 
   try {
     const cases = await prisma.case.findMany({
@@ -46,19 +46,21 @@ export const getCases = async (req: Request, res: Response) => {
     if (userRole && userRole !== 'superadmin' && userRole !== 'admin') {
       filteredCases = cases.filter(c => {
         if (userRole === 'client') {
-          return c.client?.email?.toLowerCase() === userEmail.toLowerCase() || cases.length > 0;
+          return (c.client?.email && userEmail ? c.client.email.toLowerCase() === userEmail.toLowerCase() : false) || cases.length > 0;
         }
         const notes = c.client?.notes || '';
         if (!c.assignedWriter && !c.assignedReviewer && !notes.includes('Created By:')) return true;
-        return (c.assignedWriter && c.assignedWriter.toLowerCase().includes(userEmail.toLowerCase())) ||
-               (c.assignedReviewer && c.assignedReviewer.toLowerCase().includes(userEmail.toLowerCase())) ||
-               (notes.includes(`Created By: ${userEmail}`));
+        const writerMatch = c.assignedWriter && userEmail ? c.assignedWriter.toLowerCase().includes(userEmail.toLowerCase()) : false;
+        const reviewerMatch = c.assignedReviewer && userEmail ? c.assignedReviewer.toLowerCase().includes(userEmail.toLowerCase()) : false;
+        const creatorMatch = userEmail ? notes.includes(`Created By: ${userEmail}`) : false;
+        return writerMatch || reviewerMatch || creatorMatch;
       });
     }
 
     return res.json({ success: true, data: filteredCases });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    console.error('[CASE DEBUG] Error in getCases:', error);
+    return res.status(500).json({ success: false, error: error.message || 'Failed to fetch cases' });
   }
 };
 
