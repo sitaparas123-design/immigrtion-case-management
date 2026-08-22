@@ -5,6 +5,7 @@ import { prisma } from '../config/db.js';
 import { z } from 'zod';
 import { ROLE_PERMISSIONS } from '../config/permissions.js';
 import { userStatusStore } from './userController.js';
+import { generateOtp, verifyOtp, sendOtpEmail } from '../services/emailService.js';
 
 const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -173,52 +174,102 @@ export const refreshToken = async (req: Request, res: Response) => {
 export const forgotPassword = async (req: Request, res: Response) => {
   const { email } = req.body;
   if (!email) {
-    return res.status(400).json({ success: false, error: 'Email is required' });
+    return res.status(400).json({ success: false, error: 'Email address is required' });
   }
 
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return res.status(404).json({ success: false, error: 'Email not found' });
+    const cleanEmail = email.trim().toLowerCase();
+    let user = await prisma.user.findUnique({ where: { email: cleanEmail } });
+
+    // Auto-seed default user if missing
+    if (!user && DEFAULT_USERS[cleanEmail]) {
+      const defUser = DEFAULT_USERS[cleanEmail];
+      const hashedPassword = await bcrypt.hash('123456', 10);
+      user = await prisma.user.create({
+        data: {
+          name: defUser.name,
+          email: cleanEmail,
+          password: hashedPassword,
+          role: defUser.role
+        }
+      });
     }
 
-    console.log(`[AUTH DEBUG] Password reset requested for: ${email}. Simulated OTP: 123456`);
+    // Auto-link client record if candidate exists
+    if (!user) {
+      const clientRecord = await prisma.client.findUnique({ where: { email: cleanEmail } });
+      if (clientRecord) {
+        const hashedPassword = await bcrypt.hash('123456', 10);
+        user = await prisma.user.create({
+          data: {
+            name: clientRecord.name,
+            email: cleanEmail,
+            password: hashedPassword,
+            role: 'client'
+          }
+        });
+      }
+    }
+
+    // For candidate demo convenience: if user is not found, auto-create candidate user so OTP flow works seamlessly
+    if (!user) {
+      const defaultName = cleanEmail.split('@')[0] || 'Candidate User';
+      const hashedPassword = await bcrypt.hash('123456', 10);
+      user = await prisma.user.create({
+        data: {
+          name: defaultName,
+          email: cleanEmail,
+          password: hashedPassword,
+          role: 'client'
+        }
+      });
+    }
+
+    const otpCode = generateOtp(cleanEmail);
+    const sent = await sendOtpEmail(cleanEmail, otpCode);
+
     return res.json({
       success: true,
-      message: 'Password reset OTP code sent successfully',
-      otp: '123456'
+      message: sent
+        ? `Password reset OTP verification code sent to ${cleanEmail}. Check your email inbox.`
+        : `Password reset OTP generated. Check your email or use test OTP code 123456 (or code: ${otpCode})`,
+      otp: otpCode
     });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    console.error('[AUTH DEBUG] Error in forgotPassword:', error);
+    return res.status(500).json({ success: false, error: error.message || 'Failed to process password reset request' });
   }
 };
 
 export const resetPassword = async (req: Request, res: Response) => {
   const { email, password, otp } = req.body;
   if (!email || !password || !otp) {
-    return res.status(400).json({ success: false, error: 'Email, password, and OTP are required' });
+    return res.status(400).json({ success: false, error: 'Email, password, and OTP code are required' });
   }
 
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const cleanEmail = email.trim().toLowerCase();
+    let user = await prisma.user.findUnique({ where: { email: cleanEmail } });
+
     if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found' });
+      return res.status(400).json({ success: false, error: 'No account found with this email address' });
     }
 
-    if (otp !== '123456') {
-      return res.status(400).json({ success: false, error: 'Invalid OTP code' });
+    if (!verifyOtp(cleanEmail, otp)) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired OTP verification code' });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
     await prisma.user.update({
-      where: { email },
+      where: { email: cleanEmail },
       data: { password: passwordHash }
     });
 
-    console.log(`[AUTH DEBUG] Password successfully updated for user: ${email}`);
+    console.log(`[AUTH DEBUG] Password successfully updated for user: ${cleanEmail}`);
     return res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    console.error('[AUTH DEBUG] Error in resetPassword:', error);
+    return res.status(500).json({ success: false, error: error.message || 'Failed to reset password' });
   }
 };
 
@@ -302,51 +353,76 @@ export const loginAdmin = async (req: Request, res: Response) => {
 export const forgotAdminPassword = async (req: Request, res: Response) => {
   const { email } = req.body;
   if (!email) {
-    return res.status(400).json({ success: false, error: 'Email is required' });
+    return res.status(400).json({ success: false, error: 'Email address is required' });
   }
 
   try {
-    const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
-    if (!user || user.role.toLowerCase() !== 'admin') {
-      return res.status(404).json({ success: false, error: 'Administrator email not found' });
+    const cleanEmail = email.trim().toLowerCase();
+    let user = await prisma.user.findUnique({ where: { email: cleanEmail } });
+
+    // Auto-seed default user if missing
+    if (!user && DEFAULT_USERS[cleanEmail]) {
+      const defUser = DEFAULT_USERS[cleanEmail];
+      const hashedPassword = await bcrypt.hash('password123', 10);
+      user = await prisma.user.create({
+        data: {
+          name: defUser.name,
+          email: cleanEmail,
+          password: hashedPassword,
+          role: defUser.role
+        }
+      });
     }
 
-    console.log(`[AUTH DEBUG] Admin password reset OTP code requested for: ${email}`);
+    const adminRoles = ['admin', 'superadmin', 'writer', 'reviewer'];
+    if (!user || !adminRoles.includes(user.role.toLowerCase())) {
+      return res.status(400).json({ success: false, error: 'No administrator account found with this email address' });
+    }
+
+    const otpCode = generateOtp(cleanEmail);
+    const sent = await sendOtpEmail(cleanEmail, otpCode);
+
     return res.json({
       success: true,
-      message: 'Admin password reset OTP sent successfully',
-      otp: '123456'
+      message: sent
+        ? `Admin password reset OTP verification code sent to ${cleanEmail}. Check your email inbox.`
+        : `Admin password reset OTP generated. Check your email or use test OTP code 123456 (or code: ${otpCode})`,
+      otp: otpCode
     });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    console.error('[AUTH DEBUG] Error in forgotAdminPassword:', error);
+    return res.status(500).json({ success: false, error: error.message || 'Failed to process admin password reset request' });
   }
 };
 
 export const resetAdminPassword = async (req: Request, res: Response) => {
   const { email, password, otp } = req.body;
   if (!email || !password || !otp) {
-    return res.status(400).json({ success: false, error: 'Email, password, and OTP are required' });
+    return res.status(400).json({ success: false, error: 'Email, password, and OTP code are required' });
   }
 
   try {
-    const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
-    if (!user || user.role.toLowerCase() !== 'admin') {
-      return res.status(404).json({ success: false, error: 'Admin account not found' });
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email: cleanEmail } });
+    const adminRoles = ['admin', 'superadmin', 'writer', 'reviewer'];
+    if (!user || !adminRoles.includes(user.role.toLowerCase())) {
+      return res.status(400).json({ success: false, error: 'Administrator account not found' });
     }
 
-    if (otp !== '123456') {
-      return res.status(400).json({ success: false, error: 'Invalid OTP code' });
+    if (!verifyOtp(cleanEmail, otp)) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired OTP verification code' });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
     await prisma.user.update({
-      where: { email: email.trim().toLowerCase() },
+      where: { email: cleanEmail },
       data: { password: passwordHash }
     });
 
-    console.log(`[AUTH DEBUG] Admin password successfully updated for: ${email}`);
+    console.log(`[AUTH DEBUG] Admin password successfully updated for: ${cleanEmail}`);
     return res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    console.error('[AUTH DEBUG] Error in resetAdminPassword:', error);
+    return res.status(500).json({ success: false, error: error.message || 'Failed to reset admin password' });
   }
 };

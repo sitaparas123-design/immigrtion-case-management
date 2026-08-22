@@ -142,7 +142,9 @@ const updateClientSchema = z.object({
   publicationsCount: z.coerce.number().int().nonnegative().optional(),
   patentsCount: z.coerce.number().int().nonnegative().optional(),
   status: z.string().optional(),
-  password: z.string().optional().nullable()
+  password: z.string().optional().nullable(),
+  assignedWriter: z.string().optional().nullable(),
+  assignedReviewer: z.string().optional().nullable()
 });
 
 export const updateClient = async (req: Request, res: Response) => {
@@ -195,8 +197,19 @@ export const updateClient = async (req: Request, res: Response) => {
         });
       }
 
-      // Filter out password field before updating client table since Client schema doesn't have password column
-      const { password, ...clientUpdateData } = result.data;
+      // Update team assignment across client's cases if provided
+      if (result.data.assignedWriter || result.data.assignedReviewer) {
+        const caseUpdates: any = {};
+        if (result.data.assignedWriter !== undefined) caseUpdates.assignedWriter = result.data.assignedWriter;
+        if (result.data.assignedReviewer !== undefined) caseUpdates.assignedReviewer = result.data.assignedReviewer;
+        await tx.case.updateMany({
+          where: { clientId: id },
+          data: caseUpdates
+        });
+      }
+
+      // Filter out fields before updating client table
+      const { password, assignedWriter, assignedReviewer, ...clientUpdateData } = result.data;
 
       return tx.client.update({
         where: { id },
