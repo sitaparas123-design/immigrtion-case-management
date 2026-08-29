@@ -40,6 +40,7 @@ const port = process.env.PORT || 5000;
 const allowedOrigins = [
   'https://casemanagementproject1.netlify.app',
   'https://casemanagementcode.netlify.app',
+  'https://thriving-sunburst-6e4b14.netlify.app',
   'http://localhost:5173',
   'http://localhost:3000',
   'http://localhost:5174',
@@ -65,7 +66,7 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Allow-Origin, X-User-Role');
-  
+
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
