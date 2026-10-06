@@ -8,8 +8,8 @@ const router = Router();
 // Apply auth middleware to protect all document routes
 router.use(authMiddleware);
 
-// POST /api/documents - Upload a new document file
-router.post('/', upload.single('file'), uploadDocument);
+// POST /api/documents - Upload a new document file (supports single or multiple files)
+router.post('/', upload.any(), uploadDocument);
 
 // GET /api/documents - List all documents
 router.get('/', getDocuments);

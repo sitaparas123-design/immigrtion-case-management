@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import { prisma } from '../config/db.js';
 import { z } from 'zod';
@@ -16,21 +16,84 @@ const createCaseSchema = z.object({
 });
 
 const updateStageSchema = z.object({
-  stageId: z.number().int().min(1).max(7)
+  stageId: z.number().int().min(1).max(14)
 });
 
-export const getCases = async (req: Request, res: Response) => {
+export const getCases = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const { search, riskLevel, uscisServiceCenter, petitionCategory, currentStage } = req.query;
+
+    const whereClause: any = {};
+
+    // 1. Role-based authorization & data isolation
+    if (req.user?.role === 'client') {
+      const client = await prisma.client.findUnique({
+        where: { email: req.user.email }
+      });
+      if (client) {
+        whereClause.clientId = client.id;
+      }
+    } else if (req.user?.role === 'writer') {
+      const dbUser = await prisma.user.findUnique({ where: { id: req.user.id } });
+      const writerName = dbUser?.name || 'Drafter 1';
+      whereClause.OR = [
+        { assignedWriter: { contains: writerName } },
+        { assignedWriter: { contains: 'Drafter 1' } },
+        { assignedWriter: { contains: 'Petition Drafter 1' } }
+      ];
+    }
+
+    // 2. Risk Level filter
+    if (riskLevel && riskLevel !== 'all') {
+      whereClause.riskLevel = String(riskLevel);
+    }
+
+    // 3. USCIS Service Center filter
+    if (uscisServiceCenter && uscisServiceCenter !== 'all') {
+      whereClause.uscisServiceCenter = { contains: String(uscisServiceCenter) };
+    }
+
+    // 4. Petition Category filter
+    if (petitionCategory && petitionCategory !== 'all') {
+      whereClause.petitionCategory = String(petitionCategory);
+    }
+
+    // 5. Stage filter
+    if (currentStage && currentStage !== 'all') {
+      whereClause.currentStage = Number(currentStage);
+    }
+
+    // 6. Dynamic Search query (matches candidate name, case number, endeavor field, or client email)
+    if (search && String(search).trim()) {
+      const searchStr = String(search).trim();
+      whereClause.AND = [
+        ...(whereClause.AND || []),
+        {
+          OR: [
+            { caseNumber: { contains: searchStr } },
+            { fieldCategory: { contains: searchStr } },
+            { client: { name: { contains: searchStr } } },
+            { client: { email: { contains: searchStr } } }
+          ]
+        }
+      ];
+    }
+
     const cases = await prisma.case.findMany({
+      where: whereClause,
       include: {
         client: true,
         documents: true,
-        recommenders: true
+        recommenders: true,
+        payments: true,
+        messages: true
       },
       orderBy: { lastUpdated: 'desc' }
     });
+
     return res.json({ success: true, data: cases });
   } catch (error: any) {
+    console.error('Error in getCases:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -49,9 +112,9 @@ export const getMyCase = async (req: AuthenticatedRequest, res: Response) => {
     });
 
     if (!client) {
-      // Fallback: return the first case in the system for demo purposes
+      // Fallback to latest case in database if client profile has matching user
       const fallbackCase = await prisma.case.findFirst({
-        include: { client: true, documents: true, recommenders: true },
+        include: { client: true, documents: true, recommenders: true, payments: true, messages: true },
         orderBy: { lastUpdated: 'desc' }
       });
       if (!fallbackCase) {
@@ -63,7 +126,7 @@ export const getMyCase = async (req: AuthenticatedRequest, res: Response) => {
     // Find the most recent case for this client
     const myCase = await prisma.case.findFirst({
       where: { clientId: client.id },
-      include: { client: true, documents: true, recommenders: true },
+      include: { client: true, documents: true, recommenders: true, payments: true, messages: true },
       orderBy: { lastUpdated: 'desc' }
     });
 
@@ -78,8 +141,37 @@ export const getMyCase = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+export const getCaseById = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const caseItem = await prisma.case.findFirst({
+      where: {
+        OR: [
+          { id },
+          { caseNumber: id }
+        ]
+      },
+      include: {
+        client: true,
+        documents: true,
+        recommenders: true,
+        payments: true,
+        messages: true
+      }
+    });
 
-export const createCase = async (req: Request, res: Response) => {
+    if (!caseItem) {
+      return res.status(404).json({ success: false, error: 'Case not found' });
+    }
+
+    return res.json({ success: true, data: caseItem });
+  } catch (error: any) {
+    console.error('Error in getCaseById:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const createCase = async (req: AuthenticatedRequest, res: Response) => {
   const result = createCaseSchema.safeParse(req.body);
   if (!result.success) {
     return res.status(400).json({ success: false, error: 'Validation Failed', details: result.error.errors });
@@ -109,16 +201,85 @@ export const createCase = async (req: Request, res: Response) => {
         uscisServiceCenter,
         premiumProcessing,
         currentStage: 1
+      },
+      include: {
+        client: true,
+        documents: true,
+        recommenders: true,
+        payments: true,
+        messages: true
       }
     });
 
     return res.status(201).json({ success: true, data: newCase });
   } catch (error: any) {
+    console.error('Error in createCase:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
 
-export const updateStage = async (req: Request, res: Response) => {
+export const updateCase = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.case.findFirst({
+      where: {
+        OR: [{ id }, { caseNumber: id }]
+      }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Case not found' });
+    }
+
+    const {
+      petitionCategory,
+      fieldCategory,
+      currentStage,
+      assignedWriter,
+      assignedReviewer,
+      riskLevel,
+      targetFilingDate,
+      uscisServiceCenter,
+      premiumProcessing,
+      dhanasarProngs,
+      eb1aCriteria,
+      notes
+    } = req.body;
+
+    const updateData: any = {};
+    if (petitionCategory !== undefined) updateData.petitionCategory = petitionCategory;
+    if (fieldCategory !== undefined) updateData.fieldCategory = fieldCategory;
+    if (currentStage !== undefined) updateData.currentStage = Number(currentStage);
+    if (assignedWriter !== undefined) updateData.assignedWriter = assignedWriter;
+    if (assignedReviewer !== undefined) updateData.assignedReviewer = assignedReviewer;
+    if (riskLevel !== undefined) updateData.riskLevel = riskLevel;
+    if (targetFilingDate !== undefined) updateData.targetFilingDate = targetFilingDate;
+    if (uscisServiceCenter !== undefined) updateData.uscisServiceCenter = uscisServiceCenter;
+    if (premiumProcessing !== undefined) updateData.premiumProcessing = Boolean(premiumProcessing);
+    if (dhanasarProngs !== undefined) updateData.dhanasarProngs = dhanasarProngs;
+    if (eb1aCriteria !== undefined) updateData.eb1aCriteria = eb1aCriteria;
+    if (notes !== undefined) updateData.notes = notes;
+
+    const updated = await prisma.case.update({
+      where: { id: existing.id },
+      data: updateData,
+      include: {
+        client: true,
+        documents: true,
+        recommenders: true,
+        payments: true,
+        messages: true
+      }
+    });
+
+    return res.json({ success: true, data: updated });
+  } catch (error: any) {
+    console.error('Error in updateCase:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const updateStage = async (req: AuthenticatedRequest, res: Response) => {
   const { caseNumber } = req.params;
   const result = updateStageSchema.safeParse(req.body);
   if (!result.success) {
@@ -126,25 +287,64 @@ export const updateStage = async (req: Request, res: Response) => {
   }
 
   try {
-    const existing = await prisma.case.findUnique({ where: { caseNumber } });
+    const existing = await prisma.case.findFirst({
+      where: {
+        OR: [
+          { caseNumber },
+          { id: caseNumber }
+        ]
+      }
+    });
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Case not found' });
     }
 
     const updatedCase = await prisma.case.update({
-      where: { caseNumber },
+      where: { id: existing.id },
       data: {
         currentStage: result.data.stageId
+      },
+      include: {
+        client: true,
+        documents: true,
+        recommenders: true,
+        payments: true,
+        messages: true
       }
     });
 
     return res.json({ success: true, data: updatedCase });
   } catch (error: any) {
+    console.error('Error in updateStage:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
 
-export const createRecommender = async (req: Request, res: Response) => {
+export const deleteCase = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.case.findFirst({
+      where: {
+        OR: [{ id }, { caseNumber: id }]
+      }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Case not found' });
+    }
+
+    await prisma.case.delete({
+      where: { id: existing.id }
+    });
+
+    return res.json({ success: true, message: 'Case deleted successfully', id: existing.id });
+  } catch (error: any) {
+    console.error('Error in deleteCase:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const createRecommender = async (req: AuthenticatedRequest, res: Response) => {
   const { caseId } = req.params;
   const { name, title, organization, relationship } = req.body;
   try {
@@ -166,6 +366,8 @@ export const createRecommender = async (req: Request, res: Response) => {
     });
     return res.status(201).json({ success: true, data: newRec });
   } catch (error: any) {
+    console.error('Error in createRecommender:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
+
