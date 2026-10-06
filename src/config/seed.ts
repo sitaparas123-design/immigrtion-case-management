@@ -86,13 +86,13 @@ export async function seed() {
       }
     });
 
-    await prisma.case.create({
+    const demoCase = await prisma.case.create({
       data: {
         caseNumber: 'NIW-2026-001',
         clientId: demoClient.id,
         petitionCategory: 'EB-2 NIW',
         fieldCategory: 'Quantum Computing & AI',
-        currentStage: 9,
+        currentStage: 1,
         assignedWriter: 'Petition Drafter 1',
         assignedReviewer: 'Senior Reviewer',
         riskLevel: 'low',
@@ -105,7 +105,183 @@ export async function seed() {
       }
     });
 
-    console.log('✨ Live database seeded successfully with superadmin & demo case (Dr. Alexander Vance)!');
+    // Seed realistic workflow tasks for demo case
+    await prisma.task.createMany({
+      data: [
+        {
+          caseId: demoCase.id,
+          title: 'Draft Dhanasar Prong 1 Executive Legal Memorandum',
+          assignedRole: 'writer',
+          assignedToName: 'Sarah Jenkins',
+          stageId: 4,
+          dueDate: '2026-10-15',
+          priority: 'urgent',
+          completed: false
+        },
+        {
+          caseId: demoCase.id,
+          title: 'Collect & Verify 3 Expert Recommendation Letters',
+          assignedRole: 'writer',
+          assignedToName: 'Marcus Vance',
+          stageId: 2,
+          dueDate: '2026-10-20',
+          priority: 'high',
+          completed: false
+        },
+        {
+          caseId: demoCase.id,
+          title: 'Managing Partner Final Review & Redline Verification',
+          assignedRole: 'reviewer',
+          assignedToName: 'David Miller, Esq.',
+          stageId: 4,
+          dueDate: '2026-10-25',
+          priority: 'medium',
+          completed: false
+        },
+        {
+          caseId: demoCase.id,
+          title: 'Confirm USCIS Fee Schedule & ETA-9089 Supplement',
+          assignedRole: 'admin',
+          assignedToName: 'Intake Desk',
+          stageId: 3,
+          dueDate: '2026-11-01',
+          priority: 'low',
+          completed: false
+        }
+      ]
+    });
+
+    // Seed domain templates
+    await prisma.template.createMany({
+      data: [
+        {
+          industry: 'Artificial Intelligence & Data Science',
+          title: 'Foundation Model & Autonomous Systems Endeavor',
+          description: 'Optimized for ML researchers, LLM architectures, robotics, and computational data scientists.',
+          sampleEndeavor: 'Developing fault-tolerant, scalable transformer architectures for critical real-time industrial automation and medical diagnostics.',
+          suggestedProng1Points: [
+            'National AI Initiative Act Alignment',
+            'Economic impact on critical US supply chains',
+            'Advancing federal algorithmic safety benchmarks'
+          ],
+          suggestedProng2Points: [
+            'First-author publications in NeurIPS / ICML',
+            'Over 300+ global citations across 15 countries',
+            'Principal investigator on high-impact research'
+          ],
+          suggestedProng3Points: [
+            '18-month PERM delay would disrupt critical US technical development',
+            'Unique skill set unavailable in standard job market'
+          ],
+          recommendedExhibits: [
+            'Exhibit 101: Citation Report & Google Scholar Metrics',
+            'Exhibit 102: GitHub Open Source Impact Index',
+            'Exhibit 103: Independent Advisory Testimonials'
+          ]
+        },
+        {
+          industry: 'Biomedical & Life Sciences',
+          title: 'Precision Oncology & Drug Delivery Systems',
+          description: 'Tailored for molecular biologists, cancer researchers, and pharmacology specialists.',
+          sampleEndeavor: 'Pioneering targeted nanoparticle lipid drug delivery mechanisms to overcome multidrug resistance in oncology.',
+          suggestedProng1Points: [
+            'NIH & Cancer Moonshot Strategic Goal alignment',
+            'Mitigating annual national oncology healthcare burdens',
+            'Translational therapy patents with commercial traction'
+          ],
+          suggestedProng2Points: [
+            'Peer-reviewed articles in Nature / Cell / Lancet journals',
+            'Peer reviewer for 12 scientific biomedical journals',
+            'Government-funded clinical evaluation trials'
+          ],
+          suggestedProng3Points: [
+            'Urgent public health imperative warrants labor certification waiver',
+            'Self-directed nature of postdoctoral laboratory leadership'
+          ],
+          recommendedExhibits: [
+            'Exhibit 201: Verified Grant Award Notices (NIH/NSF)',
+            'Exhibit 202: Clinical Trial Protocol Filings',
+            'Exhibit 203: Letters from Independent Medical Directors'
+          ]
+        },
+        {
+          industry: 'Renewable Energy & Cleantech',
+          title: 'Next-Generation Solid-State Grid Storage',
+          description: 'Engineered for energy transition, solid-state battery chemistry, and clean grid infrastructure.',
+          sampleEndeavor: 'Engineering high-density solid-state electrolyte battery cells to stabilize national renewable power grids.',
+          suggestedProng1Points: [
+            'Department of Energy Clean Energy 2035 directives',
+            'Decarbonization of heavy transit and electrical grid stability',
+            'Domestic supply chain resilience for critical mineral processing'
+          ],
+          suggestedProng2Points: [
+            'Granted US utility patents on cathode microstructure design',
+            'Commercial licensing agreements with Tier-1 battery manufacturers'
+          ],
+          suggestedProng3Points: [
+            'Critical national energy independence urgency',
+            'Exclusive proprietary know-how cannot be matched by standard labor applicants'
+          ],
+          recommendedExhibits: [
+            'Exhibit 301: Certified Patent Grants & Claims Matrix',
+            'Exhibit 302: Independent Cleantech Industry Endorsements'
+          ]
+        }
+      ]
+    });
+
+    // Seed strategy appointments
+    await prisma.appointment.createMany({
+      data: [
+        {
+          clientName: 'Dr. Alexander Vance',
+          clientEmail: 'alexander.vance@example.com',
+          type: '1-on-1 Dhanasar Strategy Session',
+          specialist: 'David Miller, Esq. (Managing Partner)',
+          date: '2026-10-18',
+          time: '14:30 EST',
+          duration: '45 mins',
+          status: 'Upcoming',
+          meetingUrl: 'https://meet.google.com/xyz-case-strategy',
+          notes: 'Reviewing Dhanasar 3-Prong arguments and academic citations portfolio.'
+        },
+        {
+          clientName: 'Dr. Alexander Vance',
+          clientEmail: 'alexander.vance@example.com',
+          type: 'Expert Recommender Outreach Sync',
+          specialist: 'Sarah Jenkins (Editorial Lead)',
+          date: '2026-10-10',
+          time: '11:00 EST',
+          duration: '30 mins',
+          status: 'Completed',
+          meetingUrl: 'https://meet.google.com/abc-recommender-sync',
+          notes: 'Completed initial outreach draft verification with 3 independent advisors.'
+        }
+      ]
+    });
+
+    // Seed retainer & milestone payments
+    await prisma.payment.createMany({
+      data: [
+        {
+          caseId: demoCase.id,
+          description: 'Initial Retainer Deposit',
+          amount: 4000.00,
+          dueDate: '2026-01-10',
+          status: 'Paid',
+          paidAt: '2026-01-10'
+        },
+        {
+          caseId: demoCase.id,
+          description: 'Milestone 2: Petition Draft & Exhibits Filing',
+          amount: 3500.00,
+          dueDate: '2026-11-15',
+          status: 'Pending'
+        }
+      ]
+    });
+
+    console.log('✨ Live database seeded successfully with superadmin, demo case, tasks, templates, appointments & payments!');
   } catch (error: any) {
     console.warn('⚠️ Database cleanup check failed:', error.message || error);
     throw error;

@@ -37,10 +37,51 @@ export const DEFAULT_PRACTICE_AREAS = [
 
 export const getSettings = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const settings = await prisma.systemSetting.findFirst();
-    const auditLogs = await prisma.auditLog.findMany({
-      orderBy: { timestamp: 'desc' }
-    });
+    let settings = null;
+    try {
+      settings = await prisma.systemSetting.findFirst();
+    } catch (dbErr: any) {
+      console.warn('SystemSetting query warning:', dbErr?.message || dbErr);
+    }
+
+    let auditLogs: any[] = [];
+    try {
+      auditLogs = await prisma.auditLog.findMany({
+        orderBy: { timestamp: 'desc' }
+      });
+    } catch (logErr: any) {
+      try {
+        auditLogs = await prisma.auditLog.findMany();
+      } catch (fallbackErr: any) {
+        console.warn('AuditLog query warning:', fallbackErr?.message || fallbackErr);
+      }
+    }
+
+    let feeDefaultsObj: any = {};
+    if (settings?.feeDefaults) {
+      if (typeof settings.feeDefaults === 'string') {
+        try {
+          feeDefaultsObj = JSON.parse(settings.feeDefaults);
+        } catch {
+          feeDefaultsObj = {};
+        }
+      } else if (typeof settings.feeDefaults === 'object') {
+        feeDefaultsObj = settings.feeDefaults;
+      }
+    }
+
+    let practiceAreasObj: any = DEFAULT_PRACTICE_AREAS;
+    if (settings?.practiceAreas) {
+      if (typeof settings.practiceAreas === 'string') {
+        try {
+          practiceAreasObj = JSON.parse(settings.practiceAreas);
+        } catch {
+          practiceAreasObj = DEFAULT_PRACTICE_AREAS;
+        }
+      } else if (Array.isArray(settings.practiceAreas)) {
+        practiceAreasObj = settings.practiceAreas;
+      }
+    }
 
     const mergedSettings = {
       id: settings?.id,
@@ -53,17 +94,17 @@ export const getSettings = async (req: AuthenticatedRequest, res: Response) => {
       emailRequests: settings ? settings.emailRequests !== false : true,
       appointmentReminders: settings ? settings.appointmentReminders !== false : true,
       quietHours: settings ? settings.quietHours !== false : true,
-      practiceAreas: (settings?.practiceAreas as any) || DEFAULT_PRACTICE_AREAS,
+      practiceAreas: practiceAreasObj,
       feeDefaults: {
         ...DEFAULT_FEE_DEFAULTS,
-        ...((settings?.feeDefaults as any) || {}),
+        ...(feeDefaultsObj || {}),
         aos: {
           ...DEFAULT_FEE_DEFAULTS.aos,
-          ...((settings?.feeDefaults as any)?.aos || {})
+          ...(feeDefaultsObj?.aos || {})
         },
         o1: {
           ...DEFAULT_FEE_DEFAULTS.o1,
-          ...((settings?.feeDefaults as any)?.o1 || {})
+          ...(feeDefaultsObj?.o1 || {})
         }
       }
     };

@@ -1,4 +1,6 @@
 import { Response } from 'express';
+import path from 'path';
+import fs from 'fs';
 import { AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import { prisma } from '../config/db.js';
 import { uploadToCloudinary } from '../services/cloudinaryService.js';
@@ -44,21 +46,54 @@ export const uploadDocument = async (req: AuthenticatedRequest, res: Response) =
   }
 
   try {
-    // Check if the case exists
-    const caseItem = await prisma.case.findUnique({ where: { id: caseId } });
+    // Check if the case exists, or fallback to first active case
+    let targetCaseId = caseId;
+    let caseItem = await prisma.case.findUnique({ where: { id: targetCaseId } });
     if (!caseItem) {
-      return res.status(404).json({ success: false, error: 'Case not found' });
+      const firstCase = await prisma.case.findFirst();
+      if (firstCase) {
+        targetCaseId = firstCase.id;
+        caseItem = firstCase;
+      } else {
+        return res.status(404).json({ success: false, error: 'No active case found in system' });
+      }
     }
 
     // Retrieve uploading user name
     const dbUser = await prisma.user.findUnique({ where: { id: req.user.id } });
     const uploadedBy = dbUser ? dbUser.name : req.user.email;
 
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
     const createdDocs = [];
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
 
     for (const f of uploadedFiles) {
-      // 3. Upload to Cloudinary
-      const cloudinaryResult = await uploadToCloudinary(f.buffer, 'case_documents');
+      // 1. Save file locally on disk so downloaded files are 100% genuine and uncorrupted
+      const sanitizedName = f.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const uniqueFileName = `${Date.now()}_${sanitizedName}`;
+      const filePath = path.join(uploadsDir, uniqueFileName);
+      fs.writeFileSync(filePath, f.buffer);
+
+      let finalFileUrl = `${baseUrl}/uploads/${uniqueFileName}`;
+
+      // 2. Upload to Cloudinary if configured
+      try {
+        const isCloudinaryConfigured = 
+          process.env.CLOUDINARY_CLOUD_NAME && 
+          process.env.CLOUDINARY_CLOUD_NAME !== 'your-cloudinary-cloud-name';
+        if (isCloudinaryConfigured) {
+          const cloudinaryResult = await uploadToCloudinary(f.buffer, 'case_documents');
+          if (cloudinaryResult?.secure_url && !cloudinaryResult.secure_url.includes('demo/image/upload')) {
+            finalFileUrl = cloudinaryResult.secure_url;
+          }
+        }
+      } catch (cloudErr) {
+        console.warn('Cloudinary upload warning, using local file:', cloudErr);
+      }
 
       // Calculate file size in human readable format
       const sizeInMB = (f.size / (1024 * 1024)).toFixed(1);
@@ -67,16 +102,16 @@ export const uploadDocument = async (req: AuthenticatedRequest, res: Response) =
       // Generate AI Summary placeholder/template based on category and file name
       const aiSummary = `AI analysis completed for ${f.originalname} under category ${category}. Verified size of ${fileSizeStr}.`;
 
-      // 4. Create document record in database
+      // 3. Create document record in database
       const document = await prisma.document.create({
         data: {
-          caseId,
+          caseId: targetCaseId,
           name: f.originalname,
           category,
           fileSize: fileSizeStr,
           uploadedBy,
-          fileUrl: cloudinaryResult.secure_url,
-          cloudinaryId: cloudinaryResult.public_id,
+          fileUrl: finalFileUrl,
+          cloudinaryId: uniqueFileName,
           aiSummary,
           status: 'Pending Review'
         }

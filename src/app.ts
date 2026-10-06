@@ -3,6 +3,8 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
 import authRoutes from './routes/authRoutes.js';
 import clientRoutes from './routes/clientRoutes.js';
 import caseRoutes from './routes/caseRoutes.js';
@@ -45,7 +47,8 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5174',
   'http://localhost:5000',
-  'http://localhost:5001'
+  'http://localhost:5001',
+  'http://localhost:5005'
 ];
 
 if (process.env.FRONTEND_URL) {
@@ -83,8 +86,15 @@ const corsOptions: cors.CorsOptions = {
   optionsSuccessStatus: 200
 };
 
+// Ensure uploads directory exists
+const uploadsDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use('/uploads', express.static(uploadsDir));
 
 // Custom middleware to catch JSON syntax errors from body-parser gracefully (400 instead of 500)
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

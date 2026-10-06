@@ -8,18 +8,18 @@ export const getDashboardStats = async (req: AuthenticatedRequest, res: Response
     const allTasks = await prisma.task.findMany();
 
     const activeCases = allCases.length;
-    const inReview = allCases.filter(c => c.currentStage >= 9 && c.currentStage <= 12).length;
+    const inReview = allCases.filter(c => c.currentStage === 4 || (c.currentStage >= 9 && c.currentStage <= 12)).length;
     
     // Risk level filter: medium and high flag rates
     const rfeCases = allCases.filter(c => c.riskLevel === 'high' || c.riskLevel === 'medium').length;
 
     // Funnel stage distribution
     const funnel = {
-      intake: allCases.filter(c => c.currentStage >= 1 && c.currentStage <= 2).length,
-      evaluation: allCases.filter(c => c.currentStage >= 3 && c.currentStage <= 5).length,
-      evidence: allCases.filter(c => c.currentStage >= 6 && c.currentStage <= 8).length,
-      drafting: allCases.filter(c => c.currentStage >= 9 && c.currentStage <= 12).length,
-      filing: allCases.filter(c => c.currentStage >= 13 && c.currentStage <= 14).length,
+      intake: allCases.filter(c => c.currentStage === 1).length,
+      strategy: allCases.filter(c => c.currentStage === 2).length,
+      forms: allCases.filter(c => c.currentStage === 3).length,
+      drafting: allCases.filter(c => c.currentStage === 4 || (c.currentStage >= 9 && c.currentStage <= 12)).length,
+      filing: allCases.filter(c => c.currentStage >= 5 && c.currentStage <= 7).length,
     };
 
     const pendingTasks = allTasks.filter(t => !t.completed).length;
