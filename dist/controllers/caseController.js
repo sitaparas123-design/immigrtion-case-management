@@ -366,12 +366,12 @@ export const intakeCase = async (req, res) => {
                         currentField: data.currentField,
                         highestDegree: data.highestDegree || 'Ph.D.',
                         university: data.university || 'Standard University',
-                        status: 'Active',
-                        notes: `[Created By: ${creatorEmail}]`
+                        status: 'Active'
                     }
                 });
             }
             const caseNumber = await generateUniqueCaseNumber(tx, data.petitionCategory);
+            const creatorEmail = req.user?.email || 'unknown';
             const newCase = await tx.case.create({
                 data: {
                     caseNumber,
@@ -384,7 +384,8 @@ export const intakeCase = async (req, res) => {
                     targetFilingDate: data.targetFilingDate || '2026-12-31',
                     uscisServiceCenter: data.uscisServiceCenter,
                     premiumProcessing: data.premiumProcessing,
-                    currentStage: 1
+                    currentStage: 1,
+                    notes: `[Created By: ${creatorEmail}]`
                 },
                 include: {
                     client: true,
