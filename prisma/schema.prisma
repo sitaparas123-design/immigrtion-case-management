@@ -32,6 +32,13 @@ model Client {
   patentsCount      Int      @default(0) @map("patents_count")
   status            String   @default("Active")
   createdAt         DateTime @default(now()) @map("created_at")
+  
+  // Onboarding fields
+  dateOfBirth       String?  @map("date_of_birth")
+  address           String?  @db.Text
+  passportNumber    String?  @map("passport_number")
+  clientCategory    String?  @map("client_category")
+  notes             String?  @db.Text
 
   cases             Case[]
 
@@ -55,6 +62,11 @@ model Case {
   eb1aCriteria       Json?    @map("eb1a_criteria")
   notes              String?  @db.Text
   lastUpdated        DateTime @updatedAt @map("last_updated")
+
+  // Additional case creation fields
+  title              String?
+  priority           String?  @default("Medium")
+  status             String?  @default("Draft")
 
   client             Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   documents          Document[]

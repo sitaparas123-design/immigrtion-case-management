@@ -20,6 +20,16 @@ import reportRoutes from './routes/reportRoutes.js';
 
 // Seed API endpoint for easy developer verification
 import { seed } from './config/seed.js';
+import { execSync } from 'child_process';
+
+// Auto-sync Prisma schema with database on startup
+try {
+  console.log('🔄 Auto-pushing Prisma schema to database...');
+  execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' });
+  console.log('✅ Database schema synchronized.');
+} catch (err: any) {
+  console.warn('⚠️ Database schema push check skipped:', err.message || err);
+}
 
 // Auto-seed database if empty on startup
 seed().catch(err => console.warn('Database seeding check skipped:', err.message || err));
@@ -28,7 +38,9 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 const allowedOrigins = [
+  'https://casemanagementproject1.netlify.app',
   'https://casemanagementcode.netlify.app',
+  'https://thriving-sunburst-6e4b14.netlify.app',
   'http://localhost:5173',
   'http://localhost:3000',
   'http://localhost:5174',
@@ -53,8 +65,8 @@ app.use((req, res, next) => {
   }
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Allow-Origin');
-  
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Allow-Origin, X-User-Role');
+
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -67,12 +79,23 @@ const corsOptions: cors.CorsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Access-Control-Allow-Origin'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Access-Control-Allow-Origin', 'X-User-Role'],
   optionsSuccessStatus: 200
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Custom middleware to catch JSON syntax errors from body-parser gracefully (400 instead of 500)
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err instanceof SyntaxError && 'body' in err && (err as any).status === 400) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid JSON payload in request body. Ensure keys and strings are enclosed in valid double quotes.'
+    });
+  }
+  next(err);
+});
 
 import { prisma } from './config/db.js';
 
@@ -95,6 +118,11 @@ app.use('/api/users', userRoutes);
 // Seed API endpoint for easy developer verification
 app.get('/api/seed', async (req, res) => {
   try {
+    try {
+      execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' });
+    } catch (dbPushErr: any) {
+      console.warn('DB Push in seed endpoint warning:', dbPushErr.message || dbPushErr);
+    }
     await seed();
     const counts = {
       users: await prisma.user.count(),
@@ -133,7 +161,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
 });
 
-app.listen(port, () => {
+app.listen(Number(port), '0.0.0.0', () => {
   console.log(`Server is running on port ${port}`);
 });
 

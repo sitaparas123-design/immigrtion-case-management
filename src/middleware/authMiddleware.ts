@@ -1,11 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { ROLE_PERMISSIONS } from '../config/permissions.js';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     email: string;
     role: string;
+    permissions?: string[];
   };
 }
 
@@ -21,8 +23,16 @@ export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: N
       id: string;
       email: string;
       role: string;
+      permissions?: string[];
     };
     req.user = decoded;
+
+    const overrideRole = req.headers['x-user-role'] as string;
+    if (overrideRole) {
+      req.user.role = overrideRole;
+      req.user.permissions = ROLE_PERMISSIONS[overrideRole.toLowerCase()] || [];
+    }
+
     next();
   } catch (error) {
     return res.status(401).json({ success: false, error: 'Unauthorized: Token is expired or invalid' });

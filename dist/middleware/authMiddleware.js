@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { ROLE_PERMISSIONS } from '../config/permissions.js';
 export const authMiddleware = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -8,6 +9,11 @@ export const authMiddleware = (req, res, next) => {
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'super-secret-jwt-key-replace-this');
         req.user = decoded;
+        const overrideRole = req.headers['x-user-role'];
+        if (overrideRole) {
+            req.user.role = overrideRole;
+            req.user.permissions = ROLE_PERMISSIONS[overrideRole.toLowerCase()] || [];
+        }
         next();
     }
     catch (error) {

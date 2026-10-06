@@ -5,13 +5,12 @@ import { roleMiddleware } from '../middleware/roleMiddleware.js';
 
 const router = Router();
 
-// Protect all /api/users endpoints for Super Admin ONLY
+// Protect all /api/users endpoints
 router.use(authMiddleware);
-router.use(roleMiddleware(['superadmin']));
 
-router.get('/', getAdmins);
-router.post('/', createAdmin);
-router.put('/:id', updateAdmin);
-router.patch('/:id/status', toggleAdminStatus);
+router.get('/', roleMiddleware(['superadmin', 'admin', 'writer', 'reviewer']), getAdmins);
+router.post('/', roleMiddleware(['superadmin', 'admin']), createAdmin);
+router.put('/:id', roleMiddleware(['superadmin', 'admin']), updateAdmin);
+router.patch('/:id/status', roleMiddleware(['superadmin', 'admin']), toggleAdminStatus);
 
 export default router;
