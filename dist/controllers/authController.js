@@ -50,6 +50,9 @@ export const login = async (req, res) => {
         if (!isMatch) {
             return res.status(401).json({ success: false, error: 'Invalid email or password' });
         }
+        if (user.status === 'Inactive') {
+            return res.status(403).json({ success: false, error: 'Your account is deactivated. Please contact Super Administrator.' });
+        }
         const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET || 'super-secret-jwt-key-replace-this', { expiresIn: '24h' });
         return res.json({
             success: true,

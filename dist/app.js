@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-dotenv.config({ override: true });
+dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/authRoutes.js';
@@ -14,10 +14,12 @@ import appointmentRoutes from './routes/appointmentRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import templateRoutes from './routes/templateRoutes.js';
 import settingRoutes from './routes/settingRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
+// Seed API endpoint for easy developer verification
 import { seed } from './config/seed.js';
 // Auto-seed database if empty on startup
-seed().catch(err => console.error('Database seeding failed:', err));
+seed().catch(err => console.warn('Database seeding check skipped:', err.message || err));
 const app = express();
 const port = process.env.PORT || 5000;
 const allowedOrigins = [
@@ -29,15 +31,38 @@ const allowedOrigins = [
     'http://localhost:5001'
 ];
 if (process.env.FRONTEND_URL) {
-    allowedOrigins.push(process.env.FRONTEND_URL.replace(/\/$/, ''));
+    const customOrigin = process.env.FRONTEND_URL.replace(/\/$/, '');
+    if (!allowedOrigins.includes(customOrigin)) {
+        allowedOrigins.push(customOrigin);
+    }
 }
-app.use(cors({
-    origin: true,
+// Global CORS response header middleware (handles OPTIONS preflight & standard requests)
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Allow-Origin');
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    next();
+});
+const corsOptions = {
+    origin: (origin, callback) => {
+        callback(null, true);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
-}));
-app.options('*', cors());
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Access-Control-Allow-Origin'],
+    optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 import { prisma } from './config/db.js';
 // Main routers
@@ -54,6 +79,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/users', userRoutes);
 // Seed API endpoint for easy developer verification
 app.get('/api/seed', async (req, res) => {
     try {
