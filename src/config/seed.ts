@@ -1,36 +1,38 @@
 import { prisma } from './db.js';
 import bcrypt from 'bcryptjs';
 
-export async function seed() {
+export async function seed(force = false) {
   try {
-    console.log('🌱 Executing total database purge on live database...');
+    if (force) {
+      console.log('🌱 Executing total database purge on live database...');
 
-    // Force purge all tables
-    await prisma.task.deleteMany({});
-    await prisma.document.deleteMany({});
-    await prisma.recommender.deleteMany({});
-    await prisma.payment.deleteMany({});
-    await prisma.message.deleteMany({});
-    await prisma.appointment.deleteMany({});
-    await prisma.case.deleteMany({});
-    await prisma.client.deleteMany({});
-    await prisma.template.deleteMany({});
-    await prisma.auditLog.deleteMany({});
+      // Force purge all tables
+      await prisma.task.deleteMany({});
+      await prisma.document.deleteMany({});
+      await prisma.recommender.deleteMany({});
+      await prisma.payment.deleteMany({});
+      await prisma.message.deleteMany({});
+      await prisma.appointment.deleteMany({});
+      await prisma.case.deleteMany({});
+      await prisma.client.deleteMany({});
+      await prisma.template.deleteMany({});
+      await prisma.auditLog.deleteMany({});
 
-    // Delete all users except superadmin@babelglobal.com
-    await prisma.user.deleteMany({
-      where: {
-        email: {
-          not: 'superadmin@babelglobal.com'
+      // Delete all users except superadmin@babelglobal.com
+      await prisma.user.deleteMany({
+        where: {
+          email: {
+            not: 'superadmin@babelglobal.com'
+          }
         }
-      }
-    });
+      });
+    }
 
     // Ensure superadmin@babelglobal.com exists with password 'password123'
     const hashedPassword = await bcrypt.hash('password123', 10);
     await prisma.user.upsert({
       where: { email: 'superadmin@babelglobal.com' },
-      update: { password: hashedPassword },
+      update: {},
       create: {
         name: 'Super Administrator',
         email: 'superadmin@babelglobal.com',
@@ -39,21 +41,29 @@ export async function seed() {
       }
     });
 
-    // Recreate system settings
-    await prisma.systemSetting.deleteMany({});
-    await prisma.systemSetting.create({
-      data: {
-        companyName: 'Babel Global Editorial Services',
-        specialistId: 'BG-CONSULT-391024',
-        filingFee: '$715',
-        premiumFee: '$2,965',
-        asylumFee: '$300',
-        whatsappAlerts: true,
-        emailRequests: true,
-        appointmentReminders: true,
-        quietHours: true
-      }
-    });
+    // Ensure system settings exist if missing
+    const existingSettings = await prisma.systemSetting.findFirst();
+    if (!existingSettings) {
+      await prisma.systemSetting.create({
+        data: {
+          companyName: 'Babel Global Editorial Services',
+          specialistId: 'BG-CONSULT-391024',
+          filingFee: '$715',
+          premiumFee: '$2,965',
+          asylumFee: '$300',
+          whatsappAlerts: true,
+          emailRequests: true,
+          appointmentReminders: true,
+          quietHours: true
+        }
+      });
+    }
+
+    // If not a forced seed, keep existing data intact without recreating demo clients
+    if (!force) {
+      console.log('✅ Server database check completed (existing data preserved).');
+      return;
+    }
 
     // Create initial demo client and case
     const demoClient = await prisma.client.create({
@@ -230,35 +240,8 @@ export async function seed() {
       ]
     });
 
-    // Seed strategy appointments
-    await prisma.appointment.createMany({
-      data: [
-        {
-          clientName: 'Dr. Alexander Vance',
-          clientEmail: 'alexander.vance@example.com',
-          type: '1-on-1 Dhanasar Strategy Session',
-          specialist: 'David Miller, Esq. (Managing Partner)',
-          date: '2026-10-18',
-          time: '14:30 EST',
-          duration: '45 mins',
-          status: 'Upcoming',
-          meetingUrl: 'https://meet.google.com/xyz-case-strategy',
-          notes: 'Reviewing Dhanasar 3-Prong arguments and academic citations portfolio.'
-        },
-        {
-          clientName: 'Dr. Alexander Vance',
-          clientEmail: 'alexander.vance@example.com',
-          type: 'Expert Recommender Outreach Sync',
-          specialist: 'Sarah Jenkins (Editorial Lead)',
-          date: '2026-10-10',
-          time: '11:00 EST',
-          duration: '30 mins',
-          status: 'Completed',
-          meetingUrl: 'https://meet.google.com/abc-recommender-sync',
-          notes: 'Completed initial outreach draft verification with 3 independent advisors.'
-        }
-      ]
-    });
+    // Strategy appointments (only real user created appointments are stored)
+
 
     // Seed retainer & milestone payments
     await prisma.payment.createMany({

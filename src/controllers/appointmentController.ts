@@ -30,8 +30,18 @@ const updateAppointmentSchema = z.object({
 });
 
 export const getAppointments = async (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user;
+  const userRole = user?.role;
+  const userEmail = user?.email;
+
   try {
+    const whereClause: any = {};
+    if (userRole === 'client' && userEmail) {
+      whereClause.clientEmail = userEmail;
+    }
+
     const appointments = await prisma.appointment.findMany({
+      where: whereClause,
       orderBy: { date: 'asc' }
     });
 

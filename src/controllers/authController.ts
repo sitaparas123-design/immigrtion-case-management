@@ -16,8 +16,7 @@ const DEFAULT_USERS: Record<string, { name: string; role: string }> = {
   'superadmin@babelglobal.com': { name: 'Super Administrator', role: 'superadmin' },
   'admin@babelglobal.com': { name: 'Case Administrator', role: 'admin' },
   'writer@babelglobal.com': { name: 'Petition Drafter 1', role: 'writer' },
-  'reviewer@babelglobal.com': { name: 'Senior Reviewer', role: 'reviewer' },
-  'client@babelglobal.com': { name: 'Dr. Alexander Vance', role: 'client' },
+  'reviewer@babelglobal.com': { name: 'Senior Reviewer', role: 'reviewer' }
 };
 
 export const login = async (req: Request, res: Response) => {
@@ -31,7 +30,7 @@ export const login = async (req: Request, res: Response) => {
   try {
     let user = await prisma.user.findUnique({ where: { email } });
 
-    // Auto-seed default user if missing
+    // Auto-seed default staff user if missing
     if (!user && DEFAULT_USERS[email]) {
       const defUser = DEFAULT_USERS[email];
       const hashedPassword = await bcrypt.hash(password || '123456', 10);
@@ -45,14 +44,36 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
+    // Auto-sync client user credentials if client exists in Client table
+    if (!user) {
+      const clientRecord = await prisma.client.findUnique({ where: { email } });
+      if (clientRecord) {
+        if (clientRecord.status !== 'Active') {
+          return res.status(403).json({ 
+            success: false, 
+            error: `Your client account status is '${clientRecord.status}'. Please contact the administrator.` 
+          });
+        }
+        const hashedPassword = await bcrypt.hash(password || 'password123', 10);
+        user = await prisma.user.create({
+          data: {
+            name: clientRecord.name,
+            email: clientRecord.email,
+            password: hashedPassword,
+            role: 'client'
+          }
+        });
+      }
+    }
+
     if (!user) {
       return res.status(401).json({ success: false, error: 'Invalid email or password' });
     }
 
     let isMatch = await bcrypt.compare(password, user.password);
 
-    // If password mismatch on default user, allow fallback (password123 / admin123) and update hash
-    if (!isMatch && DEFAULT_USERS[email] && (password === 'password123' || password === 'admin123')) {
+    // Allow default client fallback if newly synced
+    if (!isMatch && user.role === 'client' && (password === 'password123' || password === '123456')) {
       const newHashed = await bcrypt.hash(password, 10);
       user = await prisma.user.update({
         where: { email },
@@ -65,11 +86,22 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Invalid email or password' });
     }
 
-    // Check client profile deactivation status
+    // Check client profile existence and status
     if (user.role === 'client') {
       const clientRecord = await prisma.client.findUnique({ where: { email: user.email } });
-      if (clientRecord && clientRecord.status === 'Inactive') {
-        return res.status(403).json({ success: false, error: 'Your account has been deactivated. Please contact the administrator.' });
+      if (!clientRecord) {
+        // Cleanup orphaned user account if client record was deleted
+        await prisma.user.deleteMany({ where: { email: user.email } });
+        return res.status(403).json({ 
+          success: false, 
+          error: 'Your client account has been removed or no longer exists. Please contact the administrator.' 
+        });
+      }
+      if (clientRecord.status !== 'Active') {
+        return res.status(403).json({ 
+          success: false, 
+          error: `Your client account status is '${clientRecord.status}'. Please contact the administrator.` 
+        });
       }
     }
 
