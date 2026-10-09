@@ -8,7 +8,9 @@ import { z } from 'zod';
 
 const uploadDocSchema = z.object({
   caseId: z.string(),
-  category: z.string().min(1)
+  category: z.string().min(1),
+  uploadedBy: z.string().optional(),
+  exhibitNumber: z.string().optional()
 });
 
 export const uploadDocument = async (req: AuthenticatedRequest, res: Response) => {
@@ -59,9 +61,26 @@ export const uploadDocument = async (req: AuthenticatedRequest, res: Response) =
       }
     }
 
-    // Retrieve uploading user name
-    const dbUser = await prisma.user.findUnique({ where: { id: req.user.id } });
-    const uploadedBy = dbUser ? dbUser.name : req.user.email;
+    // Retrieve uploading user name with role-aware resolution
+    let uploadedBy = req.body.uploadedBy?.trim();
+    if (!uploadedBy || (uploadedBy.toLowerCase() === 'client' && req.user.role !== 'client')) {
+      const dbUser = req.user.id ? await prisma.user.findUnique({ where: { id: req.user.id } }) : null;
+      if (dbUser && dbUser.name && dbUser.name.toLowerCase() !== 'client') {
+        uploadedBy = dbUser.name;
+      } else if (req.user.role === 'writer' || req.user.email?.includes('writer')) {
+        uploadedBy = 'Babel Drafter / Researcher';
+      } else if (req.user.role === 'admin' || req.user.email?.includes('admin')) {
+        uploadedBy = 'Case Administrator';
+      } else if (req.user.role === 'superadmin') {
+        uploadedBy = 'Super Administrator';
+      } else if (req.user.role === 'reviewer') {
+        uploadedBy = 'Senior Reviewer';
+      } else if (req.user.role === 'client') {
+        uploadedBy = 'Client';
+      } else {
+        uploadedBy = dbUser?.name || req.user.email || 'Petition Drafter';
+      }
+    }
 
     const uploadsDir = path.join(process.cwd(), 'uploads');
     if (!fs.existsSync(uploadsDir)) {
